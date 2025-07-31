@@ -1,0 +1,85 @@
+version: '3.8'
+
+services:
+  redis:
+    image: redis:7.2-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - ss_network
+
+  api:
+    build: 
+      context: ./apps/intermediary
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8001:8000"
+    environment:
+      - SHOTSTACK_API_KEY=${SHOTSTACK_API_KEY}
+      - SHOTSTACK_API_URL=https://api.shotstack.io/v1
+      - REDIS_URL=redis://redis:6379
+      - DATABASE_URL=postgresql://user:password@db:5432/ss_inter
+      - WEB_SERVICE_URL=http://192.168.68.108:3000
+      - JWT_SECRET=${JWT_SECRET}
+      - ENVIRONMENT=production
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/gcp-credentials.json
+    depends_on:
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./apps/intermediary:/app
+    networks:
+      - ss_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  worker:
+    build: 
+      context: ./apps/intermediary
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    command: ["python", "-m", "arq", "worker.WorkerSettings"]
+    environment:
+      - SHOTSTACK_API_KEY=${SHOTSTACK_API_KEY}
+      - SHOTSTACK_API_URL=https://api.shotstack.io/v1
+      - REDIS_URL=redis://redis:6379
+      - DATABASE_URL=postgresql://user:password@db:5432/ss_inter
+      - WEB_SERVICE_URL=http://192.168.68.108:3000
+      - JWT_SECRET=${JWT_SECRET}
+      - ENVIRONMENT=production
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/gcp-credentials.json
+    depends_on:
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./apps/intermediary:/app
+    networks:
+      - ss_network
+    healthcheck:
+      test: ["CMD", "python", "-c", "import redis; r=redis.from_url('redis://redis:6379'); r.ping()"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+networks:
+  ss_network:
+    driver: bridge
+  default:
+    external: true
+    name: bridge
+
+volumes:
+  redis_data:

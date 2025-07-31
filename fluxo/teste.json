@@ -1,0 +1,393 @@
+{
+  "name": "teste",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -420,
+        -180
+      ],
+      "id": "9196a632-6276-4682-af05-9cad30fd289a",
+      "name": "When clicking ‘Test workflow’"
+    },
+    {
+      "parameters": {
+        "numberInputs": 3
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        820,
+        -160
+      ],
+      "id": "39ffe4f0-8ad4-40cb-b6c3-b568f81db73b",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "jsCode": "const inicioItems = $items(\"inicio\");\nconst meioItems = $items(\"meio\");\nconst fimItems = $items(\"fim\");\n\n// Normaliza os dados\nconst inicio = inicioItems.map(item => ({ link: item.json.link, tempo: item.json.tempo })).filter(i => i.link && i.tempo);\nconst meio = meioItems.map(item => ({ link: item.json.link, tempo: item.json.tempo })).filter(i => i.link && i.tempo);\nconst fim = fimItems.map(item => ({ link: item.json.link, tempo: item.json.tempo })).filter(i => i.link && i.tempo);\n\nif (inicio.length === 0 || meio.length === 0 || fim.length === 0) {\n  throw new Error(\"Alguma das listas está vazia\");\n}\n\nconst results = [];\n\nfor (const ini of inicio) {\n  for (const mei of meio) {\n    for (const fi of fim) {\n      const startInicio = 0;\n      const startMeio = startInicio + ini.tempo;\n      const startFim = startMeio + mei.tempo;\n\n      const payload = {\n        timeline: {\n          tracks: [\n            {\n              clips: [\n                {\n                  asset: {\n                    type: \"video\",\n                    source: \"url\",\n                    src: ini.link\n                  },\n                  start: startInicio,\n                  length: \"auto\"\n                },\n                {\n                  asset: {\n                    type: \"video\",\n                    source: \"url\",\n                    src: mei.link\n                  },\n                  start: startMeio,\n                  length: \"auto\"\n                },\n                {\n                  asset: {\n                    type: \"video\",\n                    source: \"url\",\n                    src: fi.link\n                  },\n                  start: startFim,\n                  length: \"auto\"\n                }\n              ]\n            }\n          ]\n        },\n        output: {\n          format: \"mp4\",\n         width: \"1280\",\n            height: \"720\",\n          quality: \"medium\",\n          fps: 30\n        }\n      };\n\n      results.push({ json: { payload } });\n    }\n  }\n}\n\nreturn results;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        -160
+      ],
+      "id": "0cc7a1ef-321e-4374-a520-29c70f02508b",
+      "name": "Code"
+    },
+    {
+      "parameters": {
+        "jsCode": "const inicioItems = $items(\"inicio\");\nconst meioItems = $items(\"meio\");\nconst fimItems = $items(\"fim\");\n\n// Extrai apenas os IDs válidos\nconst inicio = inicioItems.map(item => item.json.id).filter(id => id);\nconst meio = meioItems.map(item => item.json.id).filter(id => id);\nconst fim = fimItems.map(item => item.json.id).filter(id => id);\n\nif (inicio.length === 0 || meio.length === 0 || fim.length === 0) {\n  throw new Error(\"Alguma das listas está vazia\");\n}\n\nconst results = [];\n\nfor (const ini of inicio) {\n  for (const mei of meio) {\n    for (const fi of fim) {\n      const combinedId = `[${ini}][${mei}][${fi}]`; // Correção aqui: usando template string\n      results.push({ json: { id: combinedId } });\n    }\n  }\n}\n\nreturn results;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        240
+      ],
+      "id": "5d87ae45-ef71-467d-bd39-4fde3fd7d4a5",
+      "name": "Code1"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.1,
+      "position": [
+        2480,
+        20
+      ],
+      "id": "a7dd7b4f-7be6-4241-bb5d-c20f19057dee",
+      "name": "Merge1"
+    },
+    {
+      "parameters": {
+        "url": "=http://192.168.68.108:8001/api/v1/job/{{ $('HTTP Request').item.json.job_id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoidGVzdF91c2VyXzEyMyIsInRva2VucyI6MTAwMDAsImNyZWF0ZWRfYXQiOiIyMDI1LTA3LTI5VDEyOjEyOjA1LjUxNTU3OCIsImV4cGlyZXNfYXQiOiIyMDI1LTA4LTI4VDEyOjEyOjA1LjUxNTU5NyJ9.2MCKk9SYwQGHxpf_Ua0Rutf8w1Y4Z-G25ojz427uS_g"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2340,
+        -280
+      ],
+      "id": "2f7e7c64-8ab8-401a-affc-3cb1ef5c75bd",
+      "name": "HTTP Request2"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://192.168.68.108:8001/api/v1/render",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoidGVzdF91c2VyXzEyMyIsInRva2VucyI6MTAwMDAsImNyZWF0ZWRfYXQiOiIyMDI1LTA3LTI5VDEyOjEyOjA1LjUxNTU3OCIsImV4cGlyZXNfYXQiOiIyMDI1LTA4LTI4VDEyOjEyOjA1LjUxNTU5NyJ9.2MCKk9SYwQGHxpf_Ua0Rutf8w1Y4Z-G25ojz427uS_g"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{$json.payload.toJsonString()}}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1680,
+        -200
+      ],
+      "id": "b89a439d-2c82-4bfd-8f2d-3c61c9a91d9f",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "amount": 1,
+        "unit": "minutes"
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        2000,
+        -200
+      ],
+      "id": "6a037c9c-4dc7-4d89-a963-dffde4c66c3e",
+      "name": "Wait",
+      "webhookId": "022e8818-4d0e-429e-9654-59ef9a8f29de"
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appFKMVMMnen2JS2G",
+          "mode": "list",
+          "cachedResultName": "testen8n",
+          "cachedResultUrl": "https://airtable.com/appFKMVMMnen2JS2G"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tbl5tVClOc41Q1pCo",
+          "mode": "list",
+          "cachedResultName": "inicio",
+          "cachedResultUrl": "https://airtable.com/appFKMVMMnen2JS2G/tbl5tVClOc41Q1pCo"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        120,
+        -540
+      ],
+      "id": "cafab9ab-016b-4c80-975d-9fc638df9842",
+      "name": "inicio",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "vKSGErsNcKCgizif",
+          "name": "Airtable Personal Access Token account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appFKMVMMnen2JS2G",
+          "mode": "list",
+          "cachedResultName": "testen8n",
+          "cachedResultUrl": "https://airtable.com/appFKMVMMnen2JS2G"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tbl4kuFHWkNX08s2T",
+          "mode": "list",
+          "cachedResultName": "meio",
+          "cachedResultUrl": "https://airtable.com/appFKMVMMnen2JS2G/tbl4kuFHWkNX08s2T"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        120,
+        -240
+      ],
+      "id": "617a17b5-32cb-470a-ace8-700fcdcef960",
+      "name": "meio",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "vKSGErsNcKCgizif",
+          "name": "Airtable Personal Access Token account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appFKMVMMnen2JS2G",
+          "mode": "list",
+          "cachedResultName": "testen8n",
+          "cachedResultUrl": "https://airtable.com/appFKMVMMnen2JS2G"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblob48EzhuTWjysk",
+          "mode": "list",
+          "cachedResultName": "fim",
+          "cachedResultUrl": "https://airtable.com/appFKMVMMnen2JS2G/tblob48EzhuTWjysk"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        140,
+        -20
+      ],
+      "id": "643e7d48-beec-47ff-93ba-dc5f2571f6d4",
+      "name": "fim",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "vKSGErsNcKCgizif",
+          "name": "Airtable Personal Access Token account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When clicking ‘Test workflow’": {
+      "main": [
+        [
+          {
+            "node": "inicio",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "meio",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "fim",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Code",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Code1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code1": {
+      "main": [
+        [
+          {
+            "node": "Merge1",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "HTTP Request2": {
+      "main": [
+        [
+          {
+            "node": "Merge1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge1": {
+      "main": [
+        []
+      ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "inicio": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "meio": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "fim": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "2fafbd64-d3b2-4047-bbbc-438ed4c66c84",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "1c2ce4868c4b76430286a83d59d326753e6881dc85ed14993f917d2c25c4fb91"
+  },
+  "id": "JD2r5bpU4NG9CNur",
+  "tags": []
+}
