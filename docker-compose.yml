@@ -1,6 +1,6 @@
-version: '3.8'
-
 services:
+
+  # Redis Cache & Queue
   redis:
     image: redis:7.2-alpine
     restart: unless-stopped
@@ -17,6 +17,47 @@ services:
     networks:
       - ss_network
 
+  # Next.js Web Application
+  web:
+    build:
+      context: ./apps/web
+      dockerfile: Dockerfile
+      args:
+        - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
+        - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+        - NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=${NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY}
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      # Supabase
+      - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
+      - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+      
+      # Stripe
+      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
+      - NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=${NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY}
+      - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}
+      
+      # Internal Services
+      - INTERMEDIARY_SERVICE_URL=http://api:8000
+      
+      # App Configuration
+      - NEXT_PUBLIC_BASE_URL=${NEXT_PUBLIC_BASE_URL:-http://localhost:3000}
+      - NODE_ENV=${NODE_ENV:-production}
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - ss_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # FastAPI Intermediary Service
   api:
     build: 
       context: ./apps/intermediary
@@ -25,19 +66,36 @@ services:
     ports:
       - "8001:8000"
     environment:
+      # Supabase
+      - SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
+      - SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+      - DATABASE_URL=${DATABASE_URL}
+      
+      # Shotstack
       - SHOTSTACK_API_KEY=${SHOTSTACK_API_KEY}
       - SHOTSTACK_API_URL=https://api.shotstack.io/v1
+      
+      # Redis
       - REDIS_URL=redis://redis:6379
-      - DATABASE_URL=postgresql://user:password@db:5432/ss_inter
-      - WEB_SERVICE_URL=http://192.168.68.108:3000
-      - JWT_SECRET=${JWT_SECRET}
-      - ENVIRONMENT=production
+      
+      # Google Cloud Storage
+      - GCS_BUCKET=${GCS_BUCKET}
       - GOOGLE_APPLICATION_CREDENTIALS=/app/gcp-credentials.json
+      
+      # API Configuration
+      - API_HOST=0.0.0.0
+      - API_PORT=8000
+      - ENVIRONMENT=${NODE_ENV:-production}
+      
+      # Rate Limiting
+      - RATE_LIMIT_REQUESTS=100
+      - RATE_LIMIT_WINDOW=3600
     depends_on:
       redis:
         condition: service_healthy
     volumes:
-      - ./apps/intermediary:/app
+      - ./apps/intermediary/gcp-credentials.json:/app/gcp-credentials.json:ro
     networks:
       - ss_network
     healthcheck:
@@ -46,6 +104,7 @@ services:
       timeout: 10s
       retries: 3
 
+  # ARQ Background Worker
   worker:
     build: 
       context: ./apps/intermediary
@@ -53,19 +112,32 @@ services:
     restart: unless-stopped
     command: ["python", "-m", "arq", "worker.WorkerSettings"]
     environment:
+      # Supabase
+      - SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
+      - SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+      - DATABASE_URL=${DATABASE_URL}
+      
+      # Shotstack
       - SHOTSTACK_API_KEY=${SHOTSTACK_API_KEY}
       - SHOTSTACK_API_URL=https://api.shotstack.io/v1
+      
+      # Redis
       - REDIS_URL=redis://redis:6379
-      - DATABASE_URL=postgresql://user:password@db:5432/ss_inter
-      - WEB_SERVICE_URL=http://192.168.68.108:3000
-      - JWT_SECRET=${JWT_SECRET}
-      - ENVIRONMENT=production
+      
+      # Google Cloud Storage
+      - GCS_BUCKET=${GCS_BUCKET}
       - GOOGLE_APPLICATION_CREDENTIALS=/app/gcp-credentials.json
+      
+      # Configuration
+      - ENVIRONMENT=${NODE_ENV:-production}
     depends_on:
       redis:
         condition: service_healthy
+      api:
+        condition: service_healthy
     volumes:
-      - ./apps/intermediary:/app
+      - ./apps/intermediary/gcp-credentials.json:/app/gcp-credentials.json:ro
     networks:
       - ss_network
     healthcheck:
@@ -77,9 +149,6 @@ services:
 networks:
   ss_network:
     driver: bridge
-  default:
-    external: true
-    name: bridge
 
 volumes:
   redis_data:

@@ -7,7 +7,7 @@ An intermediary platform that sits between users and the Shotstack API for video
 ```
 Users (n8n) → Next.js Frontend → FastAPI Intermediary → Shotstack API
                      ↓                    ↓
-               PostgreSQL DB    Background Worker → Google Cloud Storage
+               Supabase DB         Background Worker → Google Cloud Storage
                      ↓                    ↓
                Stripe Billing         Redis Queue
 ```
@@ -15,84 +15,136 @@ Users (n8n) → Next.js Frontend → FastAPI Intermediary → Shotstack API
 ## 📦 Services
 
 ### 🌐 `/apps/web` - Next.js Frontend + Backend
-- **Framework**: Next.js 15 App Router
+- **Framework**: Next.js 15 App Router with TypeScript
 - **Features**: User registration, token purchase, API key management
-- **Database**: PostgreSQL with Prisma ORM
+- **Database**: Supabase (PostgreSQL managed)
 - **Payments**: Stripe integration
-- **Authentication**: NextAuth.js
+- **Authentication**: Supabase Auth
+- **UI**: Shadcn UI components
+- **API Docs**: Interactive Swagger UI at `/docs`
 
 ### ⚡ `/apps/intermediary` - FastAPI Service
 - **Framework**: FastAPI (Python)
 - **Features**: Request proxying, token validation, video transfer
 - **Queue**: Redis with ARQ workers
 - **Storage**: Automatic Google Cloud Storage integration
-- **Authentication**: JWT validation
+- **Authentication**: JWT validation with Supabase
 
-### 📊 `/packages/shared` - Shared Types
-- **Framework**: TypeScript
-- **Features**: Shared types and utilities between services
-
-## 🚀 Quick Start
+## 🚀 Quick Start with Docker
 
 ### Prerequisites
-- Node.js 18+
-- Python 3.11+
-- PostgreSQL
-- Redis
 - Docker & Docker Compose
+- **Supabase project** (required for database and auth)
+- Stripe account
+- Google Cloud Storage bucket
+- Shotstack API key
 
 ### Development Setup
 
-1. **Clone and install:**
+1. **Setup Supabase project:**
+   ```bash
+   # Create project at https://supabase.com
+   # Run the SQL schema in Supabase SQL Editor
+   cat scripts/supabase-schema.sql
+   ```
+
+2. **Clone and setup environment:**
    ```bash
    git clone <repository-url>
    cd ss_inter
-   npm install
-   ```
-
-2. **Environment setup:**
-   ```bash
    cp .env.example .env
-   # Edit .env with your configuration
+   # Edit .env with your Supabase configuration
    ```
 
-3. **Database setup:**
+3. **Start all services:**
    ```bash
-   npm run db:generate
-   npm run db:push
+   docker-compose up -d
    ```
 
-4. **Start all services:**
+4. **Access the application:**
+   - Web App: http://localhost:3000
+   - API Documentation: http://localhost:3000/docs
+   - Intermediary API: http://localhost:8001
+   - Redis Commander: http://localhost:8081 (development only)
+
+5. **View logs:**
    ```bash
-   npm run dev
+   docker-compose logs -f [service-name]
    ```
 
 ### Production Deployment
 
-```bash
-docker-compose up -d
-```
+1. **Production environment:**
+   ```bash
+   cp .env.example .env.production
+   # Edit with production values
+   docker-compose -f docker-compose.yml up -d
+   ```
+
+## 🐳 Docker Services
+
+| Service | Port | Description |
+|---------|------|-------------|
+| `web` | 3000 | Next.js web application |
+| `api` | 8001 | FastAPI intermediary service |
+| `worker` | - | ARQ background worker |
+| `redis` | 6379 | Redis cache and queue |
+| `redis-commander` | 8081 | Redis UI (dev only) |
+
+**Note**: Database is managed by Supabase (cloud-hosted PostgreSQL)
 
 ## 🔧 Key Features
 
 - **🎬 Video Rendering**: Proxy requests to Shotstack with authentication
 - **☁️ Auto GCS Transfer**: Videos automatically transferred to Google Cloud Storage  
 - **💰 Token Billing**: Users charged tokens per render
-- **🔐 JWT Auth**: Secure API access with JWT tokens
+- **🔐 Supabase Auth**: JWT authentication with Row Level Security
 - **⚡ Background Jobs**: Async video transfer using ARQ workers
 - **📊 Analytics**: Usage tracking and billing
 - **🚦 Rate Limiting**: Per-user request limiting
+- **📚 API Documentation**: Interactive Swagger UI
 
-## 📋 Available Scripts
+## 📋 Docker Commands
 
-| Script | Description |
-|--------|-------------|
-| `npm run dev` | Start all development servers |
-| `npm run build` | Build all services |
-| `npm run lint` | Run linting across all services |
-| `npm run db:generate` | Generate Prisma client |
-| `npm run db:push` | Push schema to database |
-| `npm run db:migrate` | Run database migrations |
+### Development
+```bash
+# Start all services
+docker-compose up -d
+
+# Start specific service
+docker-compose up -d web
+
+# View logs
+docker-compose logs -f api
+
+# Restart service
+docker-compose restart worker
+
+# Stop all services
+docker-compose down
+
+# Rebuild and start
+docker-compose up -d --build
+```
+
+### Database Management
+```bash
+# Database is managed by Supabase
+# Access via Supabase dashboard: https://supabase.com/dashboard
+
+# Reset database schema (run in Supabase SQL Editor)
+cat scripts/supabase-schema.sql
+```
+
+### Production
+```bash
+# Production build and deploy
+docker-compose -f docker-compose.yml build
+docker-compose -f docker-compose.yml up -d
+
+# Scale workers
+docker-compose up -d --scale worker=3
+```
 
 ## 🔗 API Usage
 
@@ -120,22 +172,120 @@ curl "http://localhost:8001/api/v1/videos/{job_id}" \
   -H "Authorization: Bearer <jwt-token>"
 ```
 
-## 📚 Documentation
+## 🏗️ Project Structure
 
-- [Intermediary Service Documentation](apps/intermediary/README.md)
-- [Web Application Documentation](apps/web/README.md)
+```
+.
+├── apps/
+│   ├── web/                    # Next.js application
+│   │   ├── src/
+│   │   │   ├── app/           # App Router pages and API routes
+│   │   │   ├── functions/     # Business logic functions
+│   │   │   ├── hooks/         # Custom React hooks
+│   │   │   ├── routers/       # API route handlers
+│   │   │   ├── test/          # Test files
+│   │   │   ├── types/         # TypeScript definitions
+│   │   │   └── utils/         # Utility functions
+│   │   ├── Dockerfile
+│   │   └── package.json
+│   └── intermediary/           # FastAPI service
+│       ├── app/
+│       ├── Dockerfile
+│       └── requirements.txt
+├── scripts/                    # Database and deployment scripts
+├── docker-compose.yml          # Main Docker Compose configuration
+├── docker-compose.override.yml # Development overrides
+├── .env.example               # Environment variables template
+└── README.md
+```
 
-## 🔐 Security & Production
+## 🔐 Environment Variables
 
-- JWT token validation
+Key environment variables (see `.env.example` for complete list):
+
+```bash
+# Supabase (get from your project dashboard)
+NEXT_PUBLIC_SUPABASE_URL=https://your-project-id.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+DATABASE_URL=postgresql://postgres.your-project-id:password@aws-0-region.pooler.supabase.com:6543/postgres
+
+# Shotstack
+SHOTSTACK_API_KEY=your-shotstack-api-key
+
+# Stripe
+STRIPE_SECRET_KEY=sk_test_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+
+# Google Cloud Storage
+GCS_BUCKET=your-bucket-name
+GOOGLE_APPLICATION_CREDENTIALS=/app/gcp-credentials.json
+```
+
+## 🔒 Security & Production
+
+- JWT token validation with Supabase
 - Per-user rate limiting  
 - Environment variable protection
 - CORS configuration
 - Webhook signature validation
 - Structured logging and monitoring
+- Health checks for all services
 
-## 🤝 Getting Started
+## 📚 Documentation
 
-Check individual service READMEs for detailed setup instructions:
-- [Intermediary Setup](apps/intermediary/README.md)
-- [Web App Setup](apps/web/README.md)
+- [Web Application README](apps/web/README.md)
+- [Intermediary Service README](apps/intermediary/README.md)
+- [API Documentation](http://localhost:3000/docs) (when running)
+
+## 🤝 Development
+
+### Adding New Services
+1. Create service directory in `apps/`
+2. Add Dockerfile
+3. Update `docker-compose.yml`
+4. Add environment variables to `.env.example`
+
+### Debugging
+```bash
+# View service logs
+docker-compose logs -f service-name
+
+# Execute commands in container
+docker-compose exec web bash
+docker-compose exec api python -c "import app; print('API loaded')"
+
+# Check service health
+curl http://localhost:3000/api/health
+curl http://localhost:8001/health
+```
+
+## 🚨 Troubleshooting
+
+**Port conflicts:**
+```bash
+# Check what's using ports
+sudo lsof -i :3000
+sudo lsof -i :8001
+
+# Use different ports
+WEB_PORT=3001 API_PORT=8002 docker-compose up -d
+```
+
+**Database connection issues:**
+```bash
+# Check Supabase connection settings in .env
+# Verify your Supabase project is active
+# Check connection string format in .env.example
+```
+
+**Build failures:**
+```bash
+# Clean rebuild
+docker-compose down
+docker system prune -f
+docker-compose build --no-cache
+docker-compose up -d
+```
+
+For more detailed setup instructions, see individual service READMEs.
