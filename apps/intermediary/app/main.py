@@ -25,60 +25,6 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-@asynccontextmanager
-async def lifespan(api_app: FastAPI):
-    # Startup: Create Redis connection pool
-    api_app.state.redis_pool = await create_pool(
-        RedisSettings.from_dsn(settings.REDIS_URL)
-    )
-    
-    # Startup: Initialize and start scheduler for video expiration
-    scheduler = AsyncIOScheduler()
-    
-    # Run expiration sync (configurável via ENV)
-    scheduler.add_job(
-        run_expiration_sync,
-        'cron',
-        hour=settings.EXPIRATION_SYNC_CRON_HOURS,
-        minute=0,
-        id='expiration_sync',
-        replace_existing=True
-    )
-    
-    # Run cleanup of old records once daily (configurável via ENV)
-    scheduler.add_job(
-        run_cleanup,
-        'cron',
-        hour=settings.CLEANUP_JOB_CRON_HOUR,
-        minute=0,
-        id='cleanup_old_records',
-        replace_existing=True
-    )
-    
-    # Run GCP sync fallback every hour (configurável via ENV)
-    if settings.GCP_SYNC_ENABLED:
-        scheduler.add_job(
-            run_gcp_sync_fallback,
-            'cron',
-            minute=0,
-            id='gcp_sync_fallback',
-            replace_existing=True
-        )
-        logger.info("GCP sync fallback cron job enabled")
-    else:
-        logger.info("GCP sync fallback is disabled via GCP_SYNC_ENABLED=false")
-    
-    scheduler.start()
-    api_app.state.scheduler = scheduler
-    logger.info(f"Schedulers started - Expiration sync: {settings.EXPIRATION_SYNC_CRON_HOURS}h, Cleanup: {settings.CLEANUP_JOB_CRON_HOUR}h, GCP Sync: hourly")
-    
-    yield
-    
-    # Shutdown: Stop scheduler and close Redis connection
-    scheduler.shutdown()
-    await api_app.state.redis_pool.close()
-    logger.info("Application shutdown complete")
-
 # This is the sub-application that contains all the API logic
 api_app = FastAPI(
     title="🎬 Aion Videos API",
@@ -114,7 +60,6 @@ api_app = FastAPI(
     - 🐛 Issues: Reporte problemas através do sistema
     """,
     version="2.0.0",
-    lifespan=lifespan,
     contact={
         "name": "Aion Videos Support Team",
         "email": "support@aionvideos.com",
@@ -140,6 +85,36 @@ api_app = FastAPI(
     }
 )
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup: Create Redis connection pool and attach it to the sub-app's state
+    api_app.state.redis_pool = await create_pool(
+        RedisSettings.from_dsn(settings.REDIS_URL)
+    )
+    
+    # Startup: Initialize and start scheduler for video expiration
+    scheduler = AsyncIOScheduler()
+    
+    # Add jobs to the scheduler...
+    scheduler.add_job(run_expiration_sync, 'cron', hour=settings.EXPIRATION_SYNC_CRON_HOURS, minute=0, id='expiration_sync', replace_existing=True)
+    scheduler.add_job(run_cleanup, 'cron', hour=settings.CLEANUP_JOB_CRON_HOUR, minute=0, id='cleanup_old_records', replace_existing=True)
+    if settings.GCP_SYNC_ENABLED:
+        scheduler.add_job(run_gcp_sync_fallback, 'cron', minute=0, id='gcp_sync_fallback', replace_existing=True)
+        logger.info("GCP sync fallback cron job enabled")
+    else:
+        logger.info("GCP sync fallback is disabled via GCP_SYNC_ENABLED=false")
+    
+    scheduler.start()
+    api_app.state.scheduler = scheduler
+    logger.info(f"Schedulers started - Expiration sync: {settings.EXPIRATION_SYNC_CRON_HOURS}h, Cleanup: {settings.CLEANUP_JOB_CRON_HOUR}h, GCP Sync: hourly")
+    
+    yield
+    
+    # Shutdown: Stop scheduler and close Redis connection
+    api_app.state.scheduler.shutdown()
+    await api_app.state.redis_pool.close()
+    logger.info("Application shutdown complete")
+
 # Mount static files for custom CSS and assets
 api_app.mount("/static", StaticFiles(directory="static"), name="static")
 
@@ -161,7 +136,7 @@ async def custom_swagger_ui_html():
         <script src="https://unpkg.com/swagger-ui-dist@4.15.5/swagger-ui-bundle.js"></script>
         <script>
         const ui = SwaggerUIBundle({
-            url: '/api/openapi.json', // Correct URL for the mounted app
+            url: '/api/openapi.json',
             dom_id: '#swagger-ui',
             deepLinking: true,
             presets: [
@@ -180,7 +155,6 @@ async def custom_swagger_ui_html():
             supportedSubmitMethods: ['get', 'post', 'put', 'delete', 'patch'],
             validatorUrl: null,
             onComplete: function() {
-                // Add custom header message
                 const infoElement = document.querySelector('.swagger-ui .info');
                 if (infoElement) {
                     const customHeader = document.createElement('div');
@@ -213,35 +187,16 @@ api_app.add_middleware(RateLimitMiddleware)
 
 # Include routers
 api_app.include_router(health.router, prefix="/health", tags=["health"])
-
-# Main video rendering router with authentication
-api_app.include_router(
-    shotstack.router, 
-    prefix="/v1", 
-    tags=["video-rendering"]
-)
-
-# Video expiration management router
-api_app.include_router(
-    expiration.router, 
-    prefix="/v1", 
-    tags=["expiration"]
-)
-
-# GCP sync fallback router (hidden from documentation)
-api_app.include_router(
-    gcp_sync.router, 
-    prefix="/v1", 
-    tags=["gcp-sync"],
-    include_in_schema=False
-)
+api_app.include_router(shotstack.router, prefix="/v1", tags=["video-rendering"])
+api_app.include_router(expiration.router, prefix="/v1", tags=["expiration"])
+api_app.include_router(gcp_sync.router, prefix="/v1", tags=["gcp-sync"], include_in_schema=False)
 
 @api_app.get("/")
 async def root():
     return {"message": "Aion Videos API", "version": "2.0.0"}
 
 # This is the main application that will be run by Uvicorn
-app = FastAPI()
+app = FastAPI(lifespan=lifespan)
 app.mount("/api", api_app)
 
 if __name__ == "__main__":
