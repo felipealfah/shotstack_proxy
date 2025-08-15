@@ -1,3 +1,5 @@
+# Aion Videos - Complete Docker Compose
+# Usage: docker-compose up -d --build --force-recreate
 services:
 
   # Redis Cache & Queue
@@ -22,7 +24,7 @@ services:
   web:
     build:
       context: ./apps/web
-      dockerfile: Dockerfile.local
+      dockerfile: Dockerfile
     container_name: ss-inter-web
     restart: unless-stopped
     ports:
