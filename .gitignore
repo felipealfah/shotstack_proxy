@@ -26,7 +26,7 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
+# lib/ - Comentado para permitir src/lib/utils.ts do frontend
 lib64/
 parts/
 sdist/
