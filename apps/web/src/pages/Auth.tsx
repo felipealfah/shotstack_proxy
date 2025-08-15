@@ -60,7 +60,7 @@ const Auth = () => {
       } else {
         toast({
           title: "Login realizado",
-          description: "Bem-vindo ao SS Inter!",
+          description: "Bem-vindo ao Aion Videos Api!",
         });
       }
     } catch (error) {
@@ -133,7 +133,7 @@ const Auth = () => {
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <CardTitle className="text-2xl font-bold">SS Inter</CardTitle>
+          <CardTitle className="text-2xl font-bold">Aion Videos</CardTitle>
           <CardDescription>
             Sistema de Renderização de Vídeos
           </CardDescription>

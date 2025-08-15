@@ -22,7 +22,7 @@ services:
   web:
     build:
       context: ./apps/web
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.local
     container_name: ss-inter-web
     restart: unless-stopped
     ports:

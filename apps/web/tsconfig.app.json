@@ -21,9 +21,13 @@
     "noImplicitAny": false,
     "noFallthroughCasesInSwitch": false,
 
-    "baseUrl": ".",
+    "baseUrl": "./src",
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./*"],
+      "@/components/*": ["./components/*"],
+      "@/hooks/*": ["./hooks/*"],
+      "@/integrations/*": ["./integrations/*"],
+      "@/lib/*": ["./lib/*"]
     }
   },
   "include": ["src"]
