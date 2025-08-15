@@ -1,232 +1,73 @@
-# Shotstack Intermediary Web Application
+# Welcome to your Lovable project
 
-Next.js 15 web application with Supabase authentication and Shadcn UI components for managing video rendering tokens and API keys.
+## Project info
 
-## Features
+**URL**: https://lovable.dev/projects/2971a99e-eac6-4295-b9ab-bd57e6fd6bc2
 
-- **🔐 Supabase Authentication**: Email/password and OAuth providers
-- **🎨 Shadcn UI Components**: Modern, accessible React components
-- **🔑 API Key Management**: Generate and manage API keys for programmatic access
-- **💰 Token System**: Purchase and track token usage with Stripe integration
-- **📊 Usage Analytics**: Track API usage and billing history
-- **📚 API Documentation**: Interactive Swagger UI documentation
+## How can I edit this code?
 
-## Tech Stack
+There are several ways of editing your application.
 
-- **Framework**: Next.js 15 with App Router
-- **Language**: TypeScript
-- **Styling**: Tailwind CSS + Shadcn UI
-- **Authentication**: Supabase Auth
-- **Database**: Supabase (PostgreSQL)
-- **Payments**: Stripe
-- **Validation**: Zod
-- **API Docs**: Swagger UI
+**Use Lovable**
 
-## Project Structure
+Simply visit the [Lovable Project](https://lovable.dev/projects/2971a99e-eac6-4295-b9ab-bd57e6fd6bc2) and start prompting.
 
-```
-src/
-├── app/                    # Next.js App Router
-│   ├── api/               # API Routes
-│   │   ├── auth/          # Authentication endpoints
-│   │   ├── api-keys/      # API key management
-│   │   ├── tokens/        # Token purchases
-│   │   ├── usage/         # Usage analytics
-│   │   └── swagger/       # API documentation
-│   ├── docs/              # Swagger UI page
-│   ├── layout.tsx         # Root layout
-│   └── page.tsx           # Home page
-├── functions/             # Business logic functions
-│   └── error_handling/    # Error handling utilities
-├── hooks/                 # Custom React hooks
-│   ├── useAuth.ts         # Authentication hook
-│   ├── useApiKeys.ts      # API keys management
-│   ├── useTokens.ts       # Token management
-│   └── useUsage.ts        # Usage analytics
-├── routers/               # API route handlers
-│   ├── auth.ts            # Authentication routes
-│   └── apiKeys.ts         # API key routes
-├── test/                  # Test files
-│   └── api.test.ts        # API tests
-├── types/                 # TypeScript type definitions
-│   ├── supabase.ts        # Generated Supabase types
-│   └── api.ts             # API-specific types
-└── utils/                 # Utility functions
-    ├── index.ts           # General utilities
-    ├── supabase.ts        # Supabase client configuration
-    ├── swagger.ts         # API documentation config
-    └── validations.ts     # Zod schemas
+Changes made via Lovable will be committed automatically to this repo.
+
+**Use your preferred IDE**
+
+If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+
+The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+
+Follow these steps:
+
+```sh
+# Step 1: Clone the repository using the project's Git URL.
+git clone <YOUR_GIT_URL>
+
+# Step 2: Navigate to the project directory.
+cd <YOUR_PROJECT_NAME>
+
+# Step 3: Install the necessary dependencies.
+npm i
+
+# Step 4: Start the development server with auto-reloading and an instant preview.
+npm run dev
 ```
 
-## Getting Started
+**Edit a file directly in GitHub**
 
-### Prerequisites
+- Navigate to the desired file(s).
+- Click the "Edit" button (pencil icon) at the top right of the file view.
+- Make your changes and commit the changes.
 
-- Node.js 18+
-- Supabase project
-- Stripe account (for payments)
+**Use GitHub Codespaces**
 
-### Installation
+- Navigate to the main page of your repository.
+- Click on the "Code" button (green button) near the top right.
+- Select the "Codespaces" tab.
+- Click on "New codespace" to launch a new Codespace environment.
+- Edit files directly within the Codespace and commit and push your changes once you're done.
 
-1. **Install dependencies:**
-   ```bash
-   npm install
-   ```
+## What technologies are used for this project?
 
-2. **Environment Setup:**
-   ```bash
-   cp .env.example .env.local
-   # Edit .env.local with your configuration
-   ```
+This project is built with:
 
-3. **Generate Supabase types:**
-   ```bash
-   npm run type:generate
-   ```
+- Vite
+- TypeScript
+- React
+- shadcn-ui
+- Tailwind CSS
 
-4. **Start development server:**
-   ```bash
-   npm run dev
-   ```
+## How can I deploy this project?
 
-The application will be available at `http://localhost:3000`
+Simply open [Lovable](https://lovable.dev/projects/2971a99e-eac6-4295-b9ab-bd57e6fd6bc2) and click on Share -> Publish.
 
-## API Routes
+## Can I connect a custom domain to my Lovable project?
 
-### Authentication
-- `POST /api/auth/signup` - User registration
-- `POST /api/auth/signin` - User login
-- `POST /api/auth/signout` - User logout
+Yes, you can!
 
-### API Keys
-- `GET /api/api-keys` - List user's API keys
-- `POST /api/api-keys` - Create new API key
-- `PUT /api/api-keys/:id` - Update API key
-- `DELETE /api/api-keys/:id` - Delete API key
+To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
 
-### Tokens
-- `GET /api/tokens/balance` - Get current token balance
-- `POST /api/tokens/purchase` - Purchase tokens via Stripe
-- `POST /api/tokens/webhook` - Stripe webhook handler
-
-### Usage
-- `GET /api/usage/stats` - Get usage statistics
-- `GET /api/usage/logs` - Get usage history
-
-### Documentation
-- `GET /api/swagger` - OpenAPI specification
-- `GET /docs` - Interactive Swagger UI
-
-## Environment Variables
-
-| Variable | Description | Required |
-|----------|-------------|----------|
-| `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL | Yes |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anonymous key | Yes |
-| `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key | Yes |
-| `STRIPE_SECRET_KEY` | Stripe secret key | Yes |
-| `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | Stripe publishable key | Yes |
-| `STRIPE_WEBHOOK_SECRET` | Stripe webhook secret | Yes |
-| `INTERMEDIARY_SERVICE_URL` | FastAPI service URL | Yes |
-| `INTERNAL_API_KEY` | Internal service authentication | Yes |
-| `NEXTAUTH_SECRET` | NextAuth secret | Yes |
-| `NEXTAUTH_URL` | Application URL | Yes |
-
-## Scripts
-
-- `npm run dev` - Start development server
-- `npm run build` - Build for production
-- `npm run start` - Start production server
-- `npm run lint` - Run ESLint
-- `npm run type-check` - Run TypeScript compiler
-- `npm run type:generate` - Generate Supabase types
-
-## Directory Explanation
-
-### `/functions`
-Business logic and utility functions organized by functionality. Contains error handling, validation logic, and other reusable functions.
-
-### `/hooks`
-Custom React hooks for managing state and API interactions. Each hook handles a specific domain (auth, API keys, tokens, usage).
-
-### `/routers`
-API route handlers separated from Next.js API routes for better organization. Contains the actual business logic for each endpoint.
-
-### `/test`
-Test files for the application. Includes unit tests, integration tests, and API tests.
-
-### `/utils`
-General utility functions, configurations, and helpers used throughout the application.
-
-## Database Schema
-
-The application expects the following Supabase tables:
-
-- **api_keys** - User-generated API keys
-- **credit_balance** - User token balances
-- **usage_logs** - API usage tracking
-- **renders** - Video render history
-- **stripe_customers** - Stripe customer mapping
-
-See `src/types/supabase.ts` for complete schema definitions.
-
-## Shadcn UI Components
-
-This project uses Shadcn UI components for consistent, accessible design:
-
-- Button, Card, Dialog, Dropdown
-- Toast notifications
-- Tabs, Avatar, Badge
-- Form components with validation
-- Charts for analytics (Recharts)
-
-## Security
-
-- **JWT Authentication**: Supabase Auth with Row Level Security
-- **API Key Hashing**: Secure storage of API keys
-- **CORS Configuration**: Restricted origins
-- **Input Validation**: Zod schemas for all inputs
-- **Environment Variables**: Secure secret management
-
-## Development
-
-### Adding New API Routes
-
-1. Create route handler in `src/routers/`
-2. Add Swagger documentation comments
-3. Export named functions for HTTP methods
-4. Use Zod for request validation
-5. Update types in `src/types/api.ts`
-6. Connect to Next.js API route in `src/app/api/`
-
-### Adding New Hooks
-
-1. Create hook file in `src/hooks/`
-2. Follow existing patterns for state management
-3. Use TypeScript for proper typing
-4. Handle loading and error states
-
-### Testing
-
-Run tests with:
-```bash
-npm test
-```
-
-Tests are organized in the `/test` directory and follow Jest conventions.
-
-## Production Deployment
-
-1. **Build the application:**
-   ```bash
-   npm run build
-   ```
-
-2. **Set environment variables**
-3. **Deploy to your platform** (Vercel, Netlify, etc.)
-4. **Configure Supabase** with production URLs
-5. **Set up Stripe webhooks** pointing to production
-
-## API Documentation
-
-Visit `/docs` when running the application to access interactive Swagger UI documentation.
+Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)

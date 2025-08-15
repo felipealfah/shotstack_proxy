@@ -15,12 +15,12 @@ class TokenService:
         Get user's current token balance from Supabase
         """
         try:
-            response = self.supabase.table('users').select('token_balance').eq('id', user_id).execute()
+            response = self.supabase.table('credit_balance').select('balance').eq('user_id', user_id).execute()
             
             if response.data:
-                return response.data[0].get('token_balance', 0)
+                return response.data[0].get('balance', 0)
             else:
-                logger.warning(f"User {user_id} not found in database")
+                logger.warning(f"User {user_id} not found in credit_balance table")
                 return 0
                 
         except Exception as e:
@@ -43,9 +43,9 @@ class TokenService:
             new_balance = current_balance - amount
             
             # Update user balance
-            update_response = self.supabase.table('users').update({
-                'token_balance': new_balance
-            }).eq('id', user_id).execute()
+            update_response = self.supabase.table('credit_balance').update({
+                'balance': new_balance
+            }).eq('user_id', user_id).execute()
             
             if not update_response.data:
                 logger.error(f"Failed to update token balance for user {user_id}")
@@ -57,6 +57,7 @@ class TokenService:
                 'amount': -amount,  # Negative for consumption
                 'transaction_type': 'consumption',
                 'description': description or f'Video rendering - {amount} tokens consumed',
+                'balance_before': current_balance,
                 'balance_after': new_balance,
                 'api_key_id': api_key_id
             }
@@ -84,9 +85,9 @@ class TokenService:
             new_balance = current_balance + amount
             
             # Update user balance
-            update_response = self.supabase.table('users').update({
-                'token_balance': new_balance
-            }).eq('id', user_id).execute()
+            update_response = self.supabase.table('credit_balance').update({
+                'balance': new_balance
+            }).eq('user_id', user_id).execute()
             
             if not update_response.data:
                 logger.error(f"Failed to update token balance for user {user_id}")
@@ -98,6 +99,7 @@ class TokenService:
                 'amount': amount,  # Positive for addition
                 'transaction_type': transaction_type,
                 'description': description or f'Token {transaction_type} - {amount} tokens added',
+                'balance_before': current_balance,
                 'balance_after': new_balance
             }
             

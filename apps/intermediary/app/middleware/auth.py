@@ -22,26 +22,23 @@ async def verify_api_key(credentials: HTTPAuthorizationCredentials = Depends(sec
     """
     Verify API key using Supabase database lookup
     """
+    api_key = credentials.credentials
+    
+    if not api_key:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="API key is required",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    
     try:
-        api_key = credentials.credentials
-        
-        if not api_key:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="API key is required",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-        
-        # Hash the provided API key for database lookup
-        key_hash = await hash_api_key(api_key)
         
         try:
-            # Query API key from Supabase
-            response = supabase.table('api_keys').select(
-                'id, user_id, name, is_active, last_used_at, users(id, email, token_balance)'
-            ).eq('key_hash', key_hash).eq('is_active', True).execute()
+            # Use RPC function for validation (like frontend does)
+            response = supabase.rpc('validate_api_key', {'api_key': api_key}).execute()
             
-            if not response.data:
+            if not response.data or not response.data.get('valid'):
                 logger.warning(f"Invalid API key attempt: {api_key[:10]}...")
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
@@ -49,32 +46,32 @@ async def verify_api_key(credentials: HTTPAuthorizationCredentials = Depends(sec
                     headers={"WWW-Authenticate": "Bearer"},
                 )
             
-            api_key_record = response.data[0]
-            user_data = api_key_record['users']
+            key_data = response.data
+            user_id = key_data['user_id']
             
-            if not user_data:
-                logger.error(f"API key {api_key_record['id']} has no associated user")
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Invalid API key configuration",
-                    headers={"WWW-Authenticate": "Bearer"},
-                )
+            # Get user balance from credit_balance table
+            balance_response = supabase.table('credit_balance').select('balance').eq('user_id', user_id).execute()
             
-            # Update last_used_at timestamp
+            balance = 0
+            if balance_response.data:
+                balance = balance_response.data[0]['balance']
+            
+            # Get user email from auth.users (for logging)
+            user_email = "unknown"
             try:
-                supabase.table('api_keys').update({
-                    'last_used_at': 'now()'
-                }).eq('id', api_key_record['id']).execute()
-            except Exception as e:
-                logger.warning(f"Failed to update last_used_at for API key {api_key_record['id']}: {e}")
+                auth_response = supabase.auth.admin.get_user_by_id(user_id)
+                if auth_response.user:
+                    user_email = auth_response.user.email
+            except Exception:
+                pass  # Email is not critical, continue without it
             
             # Return user information and token balance
             return {
-                "user_id": user_data['id'],
-                "email": user_data['email'],
-                "token_balance": user_data.get('token_balance', 0),
-                "api_key_id": api_key_record['id'],
-                "api_key_name": api_key_record['name']
+                "user_id": user_id,
+                "email": user_email,
+                "token_balance": balance,
+                "api_key_id": key_data['key_id'],
+                "api_key_name": "API Key"  # We don't get name from RPC, that's ok
             }
             
         except Exception as db_error:
@@ -166,6 +163,7 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
     Tries API key validation first, then JWT if that fails
     """
     token = credentials.credentials
+    
     
     # Check if it looks like a JWT token (has 3 parts separated by dots)
     if len(token.split('.')) == 3:

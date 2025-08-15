@@ -31,6 +31,24 @@ class Settings(BaseSettings):
     GCS_PATH_PREFIX: str = "videos"  # Prefixo para organizar os arquivos
     GCS_ACL: str = "publicRead"  # Permissão pública para leitura
     
+    # Cron Job Configuration (Issue #9)
+    EXPIRATION_SYNC_CRON_HOURS: str = "*/6"  # Sincronização de expiração
+    CLEANUP_JOB_CRON_HOUR: int = 3  # Hora do cleanup diário
+    
+    # Video Lifecycle Configuration (Issue #9)
+    VIDEO_RETENTION_DAYS: int = 2  # Tempo de retenção de vídeos (dias)
+    DB_RECORD_CLEANUP_DAYS: int = 30  # Limpeza de registros antigos (dias)
+    
+    # API Timeout Configuration (Issue #9)
+    SHOTSTACK_API_TIMEOUT_SECONDS: float = 10.0  # Timeout para Shotstack API
+    GCS_HEAD_REQUEST_TIMEOUT_SECONDS: float = 5.0  # Timeout para verificação GCS
+    USER_VIDEOS_PAGE_LIMIT: int = 20  # Limite de vídeos por página
+    
+    # GCP Video Sync Fallback Configuration (Issue #11)
+    GCP_SYNC_ENABLED: bool = True  # Habilitar sistema de fallback
+    GCP_SYNC_RETENTION_DAYS: int = 7  # Quantos dias para trás verificar
+    GCP_SYNC_LOG_LEVEL: str = "INFO"  # Log level para sincronização
+    
     class Config:
         env_file = ".env"
 

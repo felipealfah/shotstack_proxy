@@ -13,6 +13,7 @@ class UsageService:
     async def log_render_request(
         self, 
         user_id: str, 
+        job_id: Optional[str] = None,
         api_key_id: Optional[str] = None,
         shotstack_job_id: Optional[str] = None,
         status: str = 'pending',
@@ -27,16 +28,14 @@ class UsageService:
         try:
             render_data = {
                 'user_id': user_id,
-                'api_key_id': api_key_id,
-                'shotstack_job_id': shotstack_job_id,
+                'job_id': job_id,
+                'project_name': f'API Render {shotstack_job_id or job_id or "Unknown"}',
                 'status': status,
-                'tokens_consumed': tokens_consumed,
-                'video_duration_seconds': video_duration_seconds,
-                'request_metadata': metadata or {},
-                'created_at': datetime.utcnow().isoformat()
+                'duration_seconds': video_duration_seconds,
+                'tokens_used': tokens_consumed
             }
             
-            response = self.supabase.table('render_requests').insert(render_data).execute()
+            response = self.supabase.table('renders').insert(render_data).execute()
             
             if response.data:
                 request_id = response.data[0]['id']
@@ -52,12 +51,15 @@ class UsageService:
     
     async def update_render_request(
         self, 
-        request_id: str, 
+        request_id: str = None,
+        job_id: str = None,
         status: str = None,
         tokens_consumed: int = None,
         video_duration_seconds: int = None,
         response_data: Dict[str, Any] = None,
-        error_message: str = None
+        error_message: str = None,
+        shotstack_render_id: str = None,
+        video_url: str = None
     ) -> bool:
         """
         Update an existing render request
@@ -68,17 +70,22 @@ class UsageService:
             if status:
                 update_data['status'] = status
             if tokens_consumed is not None:
-                update_data['tokens_consumed'] = tokens_consumed
+                update_data['tokens_used'] = tokens_consumed
             if video_duration_seconds is not None:
-                update_data['video_duration_seconds'] = video_duration_seconds
-            if response_data:
-                update_data['response_data'] = response_data
-            if error_message:
-                update_data['error_message'] = error_message
+                update_data['duration_seconds'] = video_duration_seconds
+            if shotstack_render_id:
+                update_data['shotstack_render_id'] = shotstack_render_id
+            if video_url:
+                update_data['video_url'] = video_url
             
-            update_data['updated_at'] = datetime.utcnow().isoformat()
-            
-            response = self.supabase.table('render_requests').update(update_data).eq('id', request_id).execute()
+            # Update by request_id or job_id
+            if request_id:
+                response = self.supabase.table('renders').update(update_data).eq('id', request_id).execute()
+            elif job_id:
+                response = self.supabase.table('renders').update(update_data).eq('job_id', job_id).execute()
+            else:
+                logger.error("Either request_id or job_id must be provided")
+                return False
             
             if response.data:
                 logger.info(f"Updated render request {request_id}")
@@ -133,7 +140,7 @@ class UsageService:
         Get user's render request history
         """
         try:
-            query = self.supabase.table('render_requests').select('*').eq('user_id', user_id)
+            query = self.supabase.table('renders').select('*').eq('user_id', user_id)
             
             if status:
                 query = query.eq('status', status)
@@ -154,7 +161,7 @@ class UsageService:
             from datetime import timedelta
             start_date = (datetime.utcnow() - timedelta(days=days)).isoformat()
             
-            response = self.supabase.table('render_requests').select('*').eq(
+            response = self.supabase.table('renders').select('*').eq(
                 'user_id', user_id
             ).gte('created_at', start_date).execute()
             
@@ -163,8 +170,8 @@ class UsageService:
             total_requests = len(requests)
             successful_requests = len([r for r in requests if r['status'] == 'completed'])
             failed_requests = len([r for r in requests if r['status'] == 'failed'])
-            total_tokens = sum(r.get('tokens_consumed', 0) for r in requests)
-            total_duration = sum(r.get('video_duration_seconds', 0) for r in requests if r.get('video_duration_seconds'))
+            total_tokens = sum(r.get('tokens_used', 0) for r in requests)
+            total_duration = sum(r.get('duration_seconds', 0) for r in requests if r.get('duration_seconds'))
             
             return {
                 'total_requests': total_requests,

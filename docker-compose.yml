@@ -3,12 +3,13 @@ services:
   # Redis Cache & Queue
   redis:
     image: redis:7.2-alpine
+    container_name: ss-inter-redis
     restart: unless-stopped
     ports:
       - "6379:6379"
     volumes:
       - redis_data:/data
-    command: redis-server --appendonly yes
+    command: redis-server --appendonly yes --maxclients 2000 --tcp-backlog 1024 --timeout 300 --tcp-keepalive 60
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 30s
@@ -17,42 +18,24 @@ services:
     networks:
       - ss_network
 
-  # Next.js Web Application
+  # React/Vite Web Application
   web:
     build:
       context: ./apps/web
       dockerfile: Dockerfile
-      args:
-        - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
-        - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
-        - NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=${NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY}
+    container_name: ss-inter-web
     restart: unless-stopped
     ports:
-      - "3000:3000"
+      - "3003:80"
     environment:
-      # Supabase
-      - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
-      - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
-      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
-      
-      # Stripe
-      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
-      - NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=${NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY}
-      - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}
-      
-      # Internal Services
-      - INTERMEDIARY_SERVICE_URL=http://api:8000
-      
-      # App Configuration
-      - NEXT_PUBLIC_BASE_URL=${NEXT_PUBLIC_BASE_URL:-http://localhost:3000}
-      - NODE_ENV=${NODE_ENV:-production}
+      - NODE_ENV=production
     depends_on:
-      redis:
+      api:
         condition: service_healthy
     networks:
       - ss_network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -62,15 +45,16 @@ services:
     build: 
       context: ./apps/intermediary
       dockerfile: Dockerfile
+    container_name: ss-inter-api
     restart: unless-stopped
     ports:
-      - "8001:8000"
+      - "8002:8001"
     environment:
       # Supabase
-      - SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
-      - SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
       - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
-      - DATABASE_URL=${DATABASE_URL}
+      - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:password@host:5432/ss_inter}
       
       # Shotstack
       - SHOTSTACK_API_KEY=${SHOTSTACK_API_KEY}
@@ -80,17 +64,22 @@ services:
       - REDIS_URL=redis://redis:6379
       
       # Google Cloud Storage
-      - GCS_BUCKET=${GCS_BUCKET}
+      - GCS_BUCKET=${GCS_BUCKET:-ss-inter-videos}
       - GOOGLE_APPLICATION_CREDENTIALS=/app/gcp-credentials.json
       
       # API Configuration
       - API_HOST=0.0.0.0
-      - API_PORT=8000
-      - ENVIRONMENT=${NODE_ENV:-production}
+      - API_PORT=8001
+      - ENVIRONMENT=production
       
-      # Rate Limiting
-      - RATE_LIMIT_REQUESTS=100
+      # Rate Limiting & Scaling
+      - RATE_LIMIT_REQUESTS=500  # Increased for high concurrency
       - RATE_LIMIT_WINDOW=3600
+      
+      # ARQ Worker Scaling Configuration
+      - ARQ_MAX_JOBS=50  # Default: 50 concurrent jobs
+      - ARQ_JOB_TIMEOUT=600  # 10 minutes for complex renders
+      - ARQ_KEEP_RESULT=7200  # 2 hours result retention
     depends_on:
       redis:
         condition: service_healthy
@@ -99,24 +88,26 @@ services:
     networks:
       - ss_network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health/"]
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 40s
 
   # ARQ Background Worker
   worker:
     build: 
       context: ./apps/intermediary
       dockerfile: Dockerfile
+    container_name: ss-inter-worker
     restart: unless-stopped
-    command: ["python", "-m", "arq", "worker.WorkerSettings"]
+    command: ["python", "worker.py"]
     environment:
       # Supabase
-      - SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
-      - SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
       - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
-      - DATABASE_URL=${DATABASE_URL}
+      - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:password@host:5432/ss_inter}
       
       # Shotstack
       - SHOTSTACK_API_KEY=${SHOTSTACK_API_KEY}
@@ -126,16 +117,21 @@ services:
       - REDIS_URL=redis://redis:6379
       
       # Google Cloud Storage
-      - GCS_BUCKET=${GCS_BUCKET}
+      - GCS_BUCKET=${GCS_BUCKET:-ss-inter-videos}
       - GOOGLE_APPLICATION_CREDENTIALS=/app/gcp-credentials.json
       
       # Configuration
-      - ENVIRONMENT=${NODE_ENV:-production}
+      - ENVIRONMENT=production
+      
+      # ARQ Worker Scaling Configuration  
+      - ARQ_MAX_JOBS=${ARQ_MAX_JOBS:-50}  # Configurable: 30/50/100+
+      - ARQ_JOB_TIMEOUT=${ARQ_JOB_TIMEOUT:-600}  # Extended timeout for heavy loads
+      - ARQ_KEEP_RESULT=${ARQ_KEEP_RESULT:-7200}  # Extended result retention
     depends_on:
       redis:
         condition: service_healthy
       api:
-        condition: service_healthy
+        condition: service_started
     volumes:
       - ./apps/intermediary/gcp-credentials.json:/app/gcp-credentials.json:ro
     networks:
@@ -145,10 +141,112 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+  
+  # Additional Worker for High Load (30-50 jobs)
+  worker-2:
+    build: 
+      context: ./apps/intermediary
+      dockerfile: Dockerfile
+    container_name: ss-inter-worker-2
+    restart: unless-stopped
+    command: ["python", "worker.py"]
+    environment:
+      # Supabase
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+      - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:password@host:5432/ss_inter}
+      
+      # Shotstack
+      - SHOTSTACK_API_KEY=${SHOTSTACK_API_KEY}
+      - SHOTSTACK_API_URL=https://api.shotstack.io/v1
+      
+      # Redis
+      - REDIS_URL=redis://redis:6379
+      
+      # Google Cloud Storage
+      - GCS_BUCKET=${GCS_BUCKET:-ss-inter-videos}
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/gcp-credentials.json
+      
+      # Configuration
+      - ENVIRONMENT=production
+      
+      # ARQ Worker Scaling Configuration  
+      - ARQ_MAX_JOBS=30  # Worker 2: 30 jobs
+      - ARQ_JOB_TIMEOUT=600
+      - ARQ_KEEP_RESULT=7200
+    depends_on:
+      redis:
+        condition: service_healthy
+      api:
+        condition: service_started
+    volumes:
+      - ./apps/intermediary/gcp-credentials.json:/app/gcp-credentials.json:ro
+    networks:
+      - ss_network
+    profiles:
+      - high-load  # Enable with: docker-compose --profile high-load up
+    healthcheck:
+      test: ["CMD", "python", "-c", "import redis; r=redis.from_url('redis://redis:6379'); r.ping()"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    
+  # Ultra High Load Worker (50-100+ jobs)
+  worker-3:
+    build: 
+      context: ./apps/intermediary
+      dockerfile: Dockerfile
+    container_name: ss-inter-worker-3
+    restart: unless-stopped
+    command: ["python", "worker.py"]
+    environment:
+      # Supabase
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+      - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:password@host:5432/ss_inter}
+      
+      # Shotstack
+      - SHOTSTACK_API_KEY=${SHOTSTACK_API_KEY}
+      - SHOTSTACK_API_URL=https://api.shotstack.io/v1
+      
+      # Redis
+      - REDIS_URL=redis://redis:6379
+      
+      # Google Cloud Storage
+      - GCS_BUCKET=${GCS_BUCKET:-ss-inter-videos}
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/gcp-credentials.json
+      
+      # Configuration
+      - ENVIRONMENT=production
+      
+      # ARQ Worker Scaling Configuration  
+      - ARQ_MAX_JOBS=100  # Worker 3: 100+ jobs
+      - ARQ_JOB_TIMEOUT=900  # 15 min timeout
+      - ARQ_KEEP_RESULT=10800  # 3 hours retention
+    depends_on:
+      redis:
+        condition: service_healthy
+      api:
+        condition: service_started
+    volumes:
+      - ./apps/intermediary/gcp-credentials.json:/app/gcp-credentials.json:ro
+    networks:
+      - ss_network
+    profiles:
+      - ultra-high-load  # Enable with: docker-compose --profile ultra-high-load up
+    healthcheck:
+      test: ["CMD", "python", "-c", "import redis; r=redis.from_url('redis://redis:6379'); r.ping()"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
 networks:
   ss_network:
     driver: bridge
+    name: ss_inter_network
 
 volumes:
   redis_data:
+    driver: local

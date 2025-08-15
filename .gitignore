@@ -37,6 +37,10 @@ share/python-wheels/
 .installed.cfg
 *.egg
 MANIFEST
+/plan
+/.claude
+CLAUDE.md
+
 
 # PyInstaller
 *.manifest
@@ -248,7 +252,6 @@ worker.log
 app.log
 
 # Docker
-docker-compose.override.yml
 .dockerignore
 
 # Database
@@ -328,12 +331,7 @@ user_uploads/
 .ruff_cache/
 .black/
 
-# Package lock files (keep package.json but ignore locks for flexibility)
-package-lock.json
-yarn.lock
-pnpm-lock.yaml
-
-# UV lock file (Python)
+# UV lock file (Python) - keep package lock files for reproducible builds
 uv.lock
 
 # Terraform
