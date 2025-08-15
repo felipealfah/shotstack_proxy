@@ -26,9 +26,9 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(api_app: FastAPI):
     # Startup: Create Redis connection pool
-    app.state.redis_pool = await create_pool(
+    api_app.state.redis_pool = await create_pool(
         RedisSettings.from_dsn(settings.REDIS_URL)
     )
     
@@ -39,7 +39,7 @@ async def lifespan(app: FastAPI):
     scheduler.add_job(
         run_expiration_sync,
         'cron',
-        hour=settings.EXPIRATION_SYNC_CRON_HOURS,  # Configurável via .env
+        hour=settings.EXPIRATION_SYNC_CRON_HOURS,
         minute=0,
         id='expiration_sync',
         replace_existing=True
@@ -49,7 +49,7 @@ async def lifespan(app: FastAPI):
     scheduler.add_job(
         run_cleanup,
         'cron',
-        hour=settings.CLEANUP_JOB_CRON_HOUR,  # Configurável via .env
+        hour=settings.CLEANUP_JOB_CRON_HOUR,
         minute=0,
         id='cleanup_old_records',
         replace_existing=True
@@ -60,7 +60,7 @@ async def lifespan(app: FastAPI):
         scheduler.add_job(
             run_gcp_sync_fallback,
             'cron',
-            minute=0,  # Todo início de hora (0 min)
+            minute=0,
             id='gcp_sync_fallback',
             replace_existing=True
         )
@@ -69,17 +69,18 @@ async def lifespan(app: FastAPI):
         logger.info("GCP sync fallback is disabled via GCP_SYNC_ENABLED=false")
     
     scheduler.start()
-    app.state.scheduler = scheduler
+    api_app.state.scheduler = scheduler
     logger.info(f"Schedulers started - Expiration sync: {settings.EXPIRATION_SYNC_CRON_HOURS}h, Cleanup: {settings.CLEANUP_JOB_CRON_HOUR}h, GCP Sync: hourly")
     
     yield
     
     # Shutdown: Stop scheduler and close Redis connection
     scheduler.shutdown()
-    await app.state.redis_pool.close()
+    await api_app.state.redis_pool.close()
     logger.info("Application shutdown complete")
 
-app = FastAPI(
+# This is the sub-application that contains all the API logic
+api_app = FastAPI(
     title="🎬 Aion Videos API",
     description="""
     ## 🚀 API Completa para Renderização de Vídeos
@@ -96,10 +97,10 @@ app = FastAPI(
     - ⏱️ **Expiração 48h**: Gestão automática do ciclo de vida dos vídeos
     
     ### 📋 Endpoints Principais:
-    - `POST /api/v1/render` - Renderização individual  
-    - `POST /api/v1/batch-render-array` - Renderização em lote (otimizado para N8N)
-    - `GET /api/v1/videos/{job_id}` - Download e acesso aos vídeos
-    - `GET /api/v1/job/{job_id}` - Status de processamento
+    - `POST /v1/render` - Renderização individual  
+    - `POST /v1/batch-render-array` - Renderização em lote (otimizado para N8N)
+    - `GET /v1/videos/{job_id}` - Download e acesso aos vídeos
+    - `GET /v1/job/{job_id}` - Status de processamento
     
     ### 🎬 Workflow Típico:
     1. **Autenticação**: Use sua API Key no header `Authorization: Bearer YOUR_KEY`
@@ -140,10 +141,10 @@ app = FastAPI(
 )
 
 # Mount static files for custom CSS and assets
-app.mount("/static", StaticFiles(directory="static"), name="static")
+api_app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # Custom Swagger UI with CSS
-@app.get("/docs", include_in_schema=False)
+@api_app.get("/docs", include_in_schema=False)
 async def custom_swagger_ui_html():
     return HTMLResponse("""
     <!DOCTYPE html>
@@ -160,7 +161,7 @@ async def custom_swagger_ui_html():
         <script src="https://unpkg.com/swagger-ui-dist@4.15.5/swagger-ui-bundle.js"></script>
         <script>
         const ui = SwaggerUIBundle({
-            url: '/openapi.json',
+            url: '/api/openapi.json', // Correct URL for the mounted app
             dom_id: '#swagger-ui',
             deepLinking: true,
             presets: [
@@ -199,7 +200,7 @@ async def custom_swagger_ui_html():
     """)
 
 # CORS middleware
-app.add_middleware(
+api_app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  # Configure properly for production
     allow_credentials=True,
@@ -208,36 +209,40 @@ app.add_middleware(
 )
 
 # Rate limiting middleware
-app.add_middleware(RateLimitMiddleware)
+api_app.add_middleware(RateLimitMiddleware)
 
 # Include routers
-app.include_router(health.router, prefix="/health", tags=["health"])
+api_app.include_router(health.router, prefix="/health", tags=["health"])
 
 # Main video rendering router with authentication
-app.include_router(
+api_app.include_router(
     shotstack.router, 
-    prefix="/api/v1", 
+    prefix="/v1", 
     tags=["video-rendering"]
 )
 
 # Video expiration management router
-app.include_router(
+api_app.include_router(
     expiration.router, 
-    prefix="/api/v1", 
+    prefix="/v1", 
     tags=["expiration"]
 )
 
 # GCP sync fallback router (hidden from documentation)
-app.include_router(
+api_app.include_router(
     gcp_sync.router, 
-    prefix="/api/v1", 
+    prefix="/v1", 
     tags=["gcp-sync"],
-    include_in_schema=False  # Remove from OpenAPI documentation
+    include_in_schema=False
 )
 
-@app.get("/")
+@api_app.get("/")
 async def root():
     return {"message": "Aion Videos API", "version": "2.0.0"}
+
+# This is the main application that will be run by Uvicorn
+app = FastAPI()
+app.mount("/api", api_app)
 
 if __name__ == "__main__":
     uvicorn.run(
