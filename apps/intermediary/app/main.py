@@ -1,6 +1,8 @@
 from fastapi import FastAPI, HTTPException, Depends, status, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import HTMLResponse
 from contextlib import asynccontextmanager
 import uvicorn
 import os
@@ -78,14 +80,123 @@ async def lifespan(app: FastAPI):
     logger.info("Application shutdown complete")
 
 app = FastAPI(
-    title="Shotstack Intermediary API",
-    description="Intermediary service for Shotstack video rendering with token-based billing. Supports high concurrency and multiple simultaneous requests.",
-    version="1.0.0",
+    title="🎬 Aion Videos API",
+    description="""
+    ## 🚀 API Completa para Renderização de Vídeos
+    
+    **Plataforma profissional Aion Videos** para criação de vídeos de alta qualidade, 
+    com transferência automática para Google Cloud Storage e sistema baseado em tokens.
+    
+    ### 🎯 Principais Funcionalidades:
+    - ⚡ **Renderização Individual**: Crie vídeos únicos rapidamente
+    - 📦 **Renderização em Lote**: Processe múltiplos vídeos simultaneamente  
+    - 🤖 **Integração N8N**: Workflows automatizados para produção em escala
+    - ☁️ **Storage Automático**: Vídeos transferidos automaticamente para GCS
+    - 💰 **Sistema de Tokens**: Cobrança baseada em uso
+    - ⏱️ **Expiração 48h**: Gestão automática do ciclo de vida dos vídeos
+    
+    ### 📋 Endpoints Principais:
+    - `POST /api/v1/render` - Renderização individual  
+    - `POST /api/v1/batch-render-array` - Renderização em lote (otimizado para N8N)
+    - `GET /api/v1/videos/{job_id}` - Download e acesso aos vídeos
+    - `GET /api/v1/job/{job_id}` - Status de processamento
+    
+    ### 🎬 Workflow Típico:
+    1. **Autenticação**: Use sua API Key no header `Authorization: Bearer YOUR_KEY`
+    2. **Renderização**: Envie payload com timeline/assets/output
+    3. **Monitoramento**: Aguarde 30s-2min para processamento
+    4. **Download**: Acesse vídeo via URL do Google Cloud Storage
+    
+    ### 📞 Suporte:
+    - 📧 Email: support@videoapi.com
+    - 📚 Documentação: Consulte os exemplos interativos abaixo
+    - 🐛 Issues: Reporte problemas através do sistema
+    """,
+    version="2.0.0",
     lifespan=lifespan,
-    # Configuração para múltiplas requisições simultâneas
+    contact={
+        "name": "Aion Videos Support Team",
+        "email": "support@aionvideos.com",
+        "url": "https://aionvideos.com/support"
+    },
+    license_info={
+        "name": "Commercial License",
+        "url": "https://aionvideos.com/license"
+    },
+    terms_of_service="https://aionvideos.com/terms",
     docs_url="/docs",
-    redoc_url="/redoc"
+    redoc_url="/redoc",
+    openapi_url="/openapi.json",
+    swagger_ui_parameters={
+        "deepLinking": True,
+        "displayRequestDuration": True,
+        "docExpansion": "list",
+        "operationsSorter": "method",
+        "filter": True,
+        "showExtensions": True,
+        "showCommonExtensions": True,
+        "tryItOutEnabled": True
+    }
 )
+
+# Mount static files for custom CSS and assets
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+# Custom Swagger UI with CSS
+@app.get("/docs", include_in_schema=False)
+async def custom_swagger_ui_html():
+    return HTMLResponse("""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <link type="text/css" rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@4.15.5/swagger-ui-bundle.css" />
+        <link type="text/css" rel="stylesheet" href="/static/css/swagger-custom.css" />
+        <title>🎬 Aion Videos API - Interactive Documentation</title>
+        <link rel="icon" type="image/x-icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎬</text></svg>">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+    </head>
+    <body>
+        <div id="swagger-ui"></div>
+        <script src="https://unpkg.com/swagger-ui-dist@4.15.5/swagger-ui-bundle.js"></script>
+        <script>
+        const ui = SwaggerUIBundle({
+            url: '/openapi.json',
+            dom_id: '#swagger-ui',
+            deepLinking: true,
+            presets: [
+                SwaggerUIBundle.presets.apis,
+                SwaggerUIBundle.presets.standalone
+            ],
+            layout: "StandaloneLayout",
+            docExpansion: "list",
+            operationsSorter: "method",
+            filter: true,
+            showExtensions: true,
+            showCommonExtensions: true,
+            tryItOutEnabled: true,
+            displayRequestDuration: true,
+            persistAuthorization: true,
+            supportedSubmitMethods: ['get', 'post', 'put', 'delete', 'patch'],
+            validatorUrl: null,
+            onComplete: function() {
+                // Add custom header message
+                const infoElement = document.querySelector('.swagger-ui .info');
+                if (infoElement) {
+                    const customHeader = document.createElement('div');
+                    customHeader.innerHTML = `
+                        <div style="background: linear-gradient(135deg, #0066cc 0%, #004499 100%); color: white; padding: 20px; border-radius: 8px; margin: 20px 0; text-align: center;">
+                            <h3 style="margin: 0; color: white;">🚀 Ready to Start?</h3>
+                            <p style="margin: 10px 0 0 0; opacity: 0.9;">Use the interactive examples below to test our API endpoints directly!</p>
+                        </div>
+                    `;
+                    infoElement.appendChild(customHeader);
+                }
+            }
+        });
+        </script>
+    </body>
+    </html>
+    """)
 
 # CORS middleware
 app.add_middleware(
@@ -102,11 +213,11 @@ app.add_middleware(RateLimitMiddleware)
 # Include routers
 app.include_router(health.router, prefix="/health", tags=["health"])
 
-# Main shotstack router with authentication
+# Main video rendering router with authentication
 app.include_router(
     shotstack.router, 
     prefix="/api/v1", 
-    tags=["shotstack"]
+    tags=["video-rendering"]
 )
 
 # Video expiration management router
@@ -116,16 +227,17 @@ app.include_router(
     tags=["expiration"]
 )
 
-# GCP sync fallback router
+# GCP sync fallback router (hidden from documentation)
 app.include_router(
     gcp_sync.router, 
     prefix="/api/v1", 
-    tags=["gcp-sync"]
+    tags=["gcp-sync"],
+    include_in_schema=False  # Remove from OpenAPI documentation
 )
 
 @app.get("/")
 async def root():
-    return {"message": "Shotstack Intermediary API", "version": "1.0.0"}
+    return {"message": "Aion Videos API", "version": "2.0.0"}
 
 if __name__ == "__main__":
     uvicorn.run(

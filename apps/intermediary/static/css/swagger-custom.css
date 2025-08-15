@@ -1,0 +1,253 @@
+/* Custom Swagger UI Styling for Aion Videos API */
+
+/* Main branding colors */
+:root {
+  --primary-color: #0066cc;
+  --secondary-color: #004499;
+  --accent-color: #00a86b;
+  --text-color: #333333;
+  --background-color: #ffffff;
+  --border-color: #e1e5e9;
+}
+
+/* Header customization */
+.swagger-ui .topbar {
+  background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+  border-bottom: 3px solid var(--accent-color);
+  padding: 15px 0;
+}
+
+.swagger-ui .topbar .download-url-wrapper {
+  display: none;
+}
+
+/* API title styling */
+.swagger-ui .info .title {
+  color: var(--primary-color);
+  font-size: 2.5rem;
+  font-weight: 700;
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+/* Description styling */
+.swagger-ui .info .description {
+  font-size: 1.1rem;
+  line-height: 1.6;
+  color: var(--text-color);
+  max-width: 1000px;
+  margin: 0 auto;
+}
+
+.swagger-ui .info .description h2 {
+  color: var(--primary-color);
+  border-bottom: 2px solid var(--accent-color);
+  padding-bottom: 10px;
+  margin-top: 30px;
+}
+
+.swagger-ui .info .description h3 {
+  color: var(--secondary-color);
+  margin-top: 25px;
+}
+
+/* Operation sections */
+.swagger-ui .opblock-tag {
+  font-size: 1.5rem;
+  color: var(--primary-color);
+  border-bottom: 2px solid var(--border-color);
+  padding-bottom: 10px;
+  margin: 30px 0 20px 0;
+}
+
+/* HTTP method colors */
+.swagger-ui .opblock.opblock-post {
+  border-color: var(--accent-color);
+  background: rgba(0, 168, 107, 0.05);
+}
+
+.swagger-ui .opblock.opblock-post .opblock-summary-method {
+  background: var(--accent-color);
+}
+
+.swagger-ui .opblock.opblock-get {
+  border-color: var(--primary-color);
+  background: rgba(0, 102, 204, 0.05);
+}
+
+.swagger-ui .opblock.opblock-get .opblock-summary-method {
+  background: var(--primary-color);
+}
+
+/* Buttons */
+.swagger-ui .btn.authorize,
+.swagger-ui .btn.try-out__btn {
+  background: var(--primary-color);
+  border-color: var(--primary-color);
+  color: white;
+  font-weight: 600;
+  border-radius: 6px;
+  transition: all 0.3s ease;
+}
+
+.swagger-ui .btn.authorize:hover,
+.swagger-ui .btn.try-out__btn:hover {
+  background: var(--secondary-color);
+  border-color: var(--secondary-color);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 102, 204, 0.3);
+}
+
+.swagger-ui .btn.execute {
+  background: var(--accent-color);
+  border-color: var(--accent-color);
+  color: white;
+  font-weight: 600;
+  border-radius: 6px;
+}
+
+.swagger-ui .btn.execute:hover {
+  background: #008a5a;
+  border-color: #008a5a;
+}
+
+/* Response sections */
+.swagger-ui .responses-inner h4 {
+  color: var(--primary-color);
+  font-weight: 600;
+}
+
+.swagger-ui .response-col_status {
+  font-weight: 600;
+}
+
+/* Schema sections */
+.swagger-ui .model-box {
+  background: #f8f9fa;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+}
+
+.swagger-ui .model .property-row {
+  border-bottom: 1px solid var(--border-color);
+}
+
+/* Try it out sections */
+.swagger-ui .parameters-container {
+  background: #f8f9fa;
+  border-radius: 6px;
+  padding: 20px;
+  margin: 15px 0;
+}
+
+.swagger-ui .parameter__name {
+  font-weight: 600;
+  color: var(--secondary-color);
+}
+
+/* Code examples */
+.swagger-ui .highlight-code {
+  background: #2d3748;
+  border-radius: 6px;
+  padding: 15px;
+}
+
+/* Authentication section */
+.swagger-ui .auth-wrapper {
+  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+  border-radius: 8px;
+  padding: 20px;
+  margin: 20px 0;
+}
+
+/* Custom info boxes */
+.swagger-ui .info .description ul {
+  background: #f0f8ff;
+  border-left: 4px solid var(--primary-color);
+  padding: 15px 20px;
+  margin: 15px 0;
+  border-radius: 0 6px 6px 0;
+}
+
+.swagger-ui .info .description ol {
+  background: #f0fff4;
+  border-left: 4px solid var(--accent-color);
+  padding: 15px 20px;
+  margin: 15px 0;
+  border-radius: 0 6px 6px 0;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .swagger-ui .info .title {
+    font-size: 2rem;
+  }
+  
+  .swagger-ui .info .description {
+    font-size: 1rem;
+    padding: 0 15px;
+  }
+  
+  .swagger-ui .opblock-tag {
+    font-size: 1.3rem;
+  }
+}
+
+/* Success/Error message styling */
+.swagger-ui .response .response-col_description {
+  color: var(--text-color);
+  font-weight: 500;
+}
+
+/* Loading animations */
+.swagger-ui .loading-container {
+  background: linear-gradient(90deg, #f0f0f0 25%, transparent 37%, #f0f0f0 63%);
+  animation: loading 1.4s ease infinite;
+}
+
+@keyframes loading {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* Custom badges for endpoints */
+.swagger-ui .opblock-summary-description::after {
+  content: " 🎬";
+  font-size: 1.2em;
+}
+
+.swagger-ui .opblock.opblock-post .opblock-summary-description::after {
+  content: " ⚡";
+}
+
+.swagger-ui .opblock.opblock-get .opblock-summary-description::after {
+  content: " 📊";
+}
+
+/* Footer customization */
+.swagger-ui .scheme-container {
+  background: var(--background-color);
+  border-top: 1px solid var(--border-color);
+  padding: 20px 0;
+  margin-top: 40px;
+}
+
+/* Custom scrollbar */
+.swagger-ui ::-webkit-scrollbar {
+  width: 8px;
+}
+
+.swagger-ui ::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+.swagger-ui ::-webkit-scrollbar-thumb {
+  background: var(--primary-color);
+  border-radius: 4px;
+}
+
+.swagger-ui ::-webkit-scrollbar-thumb:hover {
+  background: var(--secondary-color);
+}

@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, Depends, Request, BackgroundTasks
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Any, Dict, List, Optional
 import uuid
 import json
@@ -17,16 +17,59 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 class RenderRequest(BaseModel):
-    timeline: Dict[str, Any]
-    output: Dict[str, Any]
-    destinations: Optional[List[Dict[str, Any]]] = None
-    webhook: Optional[str] = None
+    timeline: Dict[str, Any] = Field(
+        ...,
+        description="🎬 Estrutura completa do vídeo com tracks, clips e assets",
+        example={
+            "background": "#000000",
+            "tracks": [{
+                "clips": [{
+                    "asset": {
+                        "type": "title",
+                        "text": "Meu Primeiro Vídeo",
+                        "style": "minimal"
+                    },
+                    "start": 0,
+                    "length": 5
+                }]
+            }]
+        }
+    )
+    output: Dict[str, Any] = Field(
+        ...,
+        description="📊 Configurações de saída do vídeo (formato, resolução, qualidade)",
+        example={
+            "format": "mp4",
+            "resolution": "hd",
+            "fps": 25,
+            "quality": "medium"
+        }
+    )
+    destinations: Optional[List[Dict[str, Any]]] = Field(
+        None,
+        description="☁️ Destinos customizados (opcional - GCS é automático)",
+        example=[
+            {
+                "provider": "s3",
+                "options": {
+                    "region": "us-east-1",
+                    "bucket": "my-bucket",
+                    "path": "videos/"
+                }
+            }
+        ]
+    )
+    webhook: Optional[str] = Field(
+        None,
+        description="🔔 URL para notificação quando vídeo estiver pronto",
+        example="https://myapp.com/webhook/video-complete"
+    )
 
 class RenderResponse(BaseModel):
-    success: bool
-    message: str
-    job_id: str
-    estimated_tokens: int = 1
+    success: bool = Field(..., description="✅ Indica se o job foi aceito com sucesso")
+    message: str = Field(..., description="📝 Mensagem descritiva do resultado", example="Render job queued successfully")
+    job_id: str = Field(..., description="🆔 ID único do job para monitoramento", example="cf6a6061-9204-4d9b-b363-3a896d11661e")
+    estimated_tokens: int = Field(1, description="💰 Tokens consumidos para este render", example=1)
     
 class JobStatusResponse(BaseModel):
     job_id: str
@@ -35,13 +78,34 @@ class JobStatusResponse(BaseModel):
     error: Optional[str] = None
 
 class VideoLinksResponse(BaseModel):
-    success: bool
-    message: str
-    video_url: Optional[str] = None
-    poster_url: Optional[str] = None
-    thumbnail_url: Optional[str] = None
-    render_id: Optional[str] = None
-    transfer_status: Optional[str] = None  # "completed", "in_progress", "pending"
+    success: bool = Field(..., description="✅ Indica se o vídeo está disponível")
+    message: str = Field(..., description="📝 Status ou mensagem de erro", example="Video ready for download")
+    video_url: Optional[str] = Field(
+        None, 
+        description="🔗 URL direta do Google Cloud Storage para download",
+        example="https://storage.googleapis.com/ffmpeg-api/videos/2025/08/user_123/video_abc123.mp4"
+    )
+    poster_url: Optional[str] = Field(
+        None, 
+        description="🖼️ URL da imagem de capa (poster) do vídeo",
+        example="https://storage.googleapis.com/ffmpeg-api/posters/poster_abc123.jpg"
+    )
+    thumbnail_url: Optional[str] = Field(
+        None, 
+        description="🖼️ URL da miniatura do vídeo",
+        example="https://storage.googleapis.com/ffmpeg-api/thumbnails/thumb_abc123.jpg"
+    )
+    render_id: Optional[str] = Field(
+        None, 
+        description="🎬 ID do render interno",
+        example="f5fe3507-0bf7-44e7-83b2-abd5adf503d2"
+    )
+    transfer_status: Optional[str] = Field(
+        None, 
+        description="📊 Status da transferência para GCS",
+        example="completed",
+        enum=["completed", "in_progress", "pending", "failed"]
+    )
 
 class TransferStatusResponse(BaseModel):
     success: bool
@@ -78,12 +142,16 @@ class BatchRenderRequest(BaseModel):
             super().__init__(**data)
 
 class BatchRenderResponse(BaseModel):
-    success: bool
-    message: str
-    batch_id: str
-    total_jobs: int
-    job_ids: List[str]
-    estimated_tokens_total: int
+    success: bool = Field(..., description="✅ Indica se o batch foi aceito com sucesso")
+    message: str = Field(..., description="📝 Mensagem descritiva do resultado", example="Batch render queued successfully")
+    batch_id: str = Field(..., description="🆔 ID único do batch para monitoramento", example="batch_abc123def456")
+    total_jobs: int = Field(..., description="📊 Número total de vídeos no batch", example=5)
+    job_ids: List[str] = Field(
+        ..., 
+        description="🎬 Lista de IDs individuais para cada vídeo",
+        example=["abc123_000", "abc123_001", "abc123_002"]
+    )
+    estimated_tokens_total: int = Field(..., description="💰 Total de tokens consumidos", example=5)
 
 
 @router.post("/render", response_model=RenderResponse)
@@ -94,7 +162,61 @@ async def create_render(
     current_user: Dict = Depends(get_current_user)
 ):
     """
-    Queue render requests for processing by workers
+    ## 🎬 Renderização Individual de Vídeo
+    
+    Cria um único vídeo através da plataforma Aion Videos com transferência automática para Google Cloud Storage.
+    
+    ### 📋 Como Funciona:
+    1. **Token Validation**: Verifica se você tem tokens suficientes (1 token por vídeo)
+    2. **Job Queue**: Enfileira o job para processamento em background
+    3. **Video Processing**: Renderiza o vídeo usando nossa engine de alta qualidade
+    4. **Auto Transfer**: Transfere automaticamente para Google Cloud Storage
+    5. **Notification**: Vídeo fica disponível para download via `/videos/{job_id}`
+    
+    ### ⏱️ Tempo de Processamento:
+    - **Vídeos simples** (texto, imagens): 30-60 segundos
+    - **Vídeos complexos** (efeitos, transições): 1-3 minutos
+    - **Vídeos longos** (>30s): 2-5 minutos
+    
+    ### 💰 Custo:
+    - **1 token** por vídeo renderizado
+    - Tokens são consumidos imediatamente ao enfileirar o job
+    - Reembolso automático em caso de falha
+    
+    ### 📊 Status Codes:
+    - **202**: Job aceito e enfileirado com sucesso
+    - **402**: Tokens insuficientes
+    - **400**: Payload inválido
+    - **401**: API Key inválida
+    
+    ### 🎯 Exemplo de Timeline:
+    ```json
+    {
+      "timeline": {
+        "background": "#000000",
+        "tracks": [{
+          "clips": [{
+            "asset": {
+              "type": "title",
+              "text": "Meu Primeiro Vídeo",
+              "style": "minimal"
+            },
+            "start": 0,
+            "length": 5
+          }]
+        }]
+      },
+      "output": {
+        "format": "mp4",
+        "resolution": "hd"
+      }
+    }
+    ```
+    
+    ### 🔄 Próximos Passos:
+    1. Use `/job/{job_id}` para monitorar o status
+    2. Quando status = "completed", acesse `/videos/{job_id}` 
+    3. Download direto via URL do Google Cloud Storage
     """
     try:
         user_id = current_user["user_id"]
@@ -307,7 +429,60 @@ async def get_video_links(
     current_user: Dict = Depends(get_current_user)
 ):
     """
-    Get video download links from completed Shotstack render
+    ## 🎬 Acesso e Download de Vídeos
+    
+    **Obtenha links de download** para vídeos renderizados pela plataforma Aion Videos e transferidos para Google Cloud Storage.
+    
+    ### 📋 Como Funciona:
+    1. **Job Validation**: Verifica se o job_id existe e foi processado
+    2. **Status Check**: Confirma que a renderização foi concluída
+    3. **GCS URLs**: Retorna URLs diretas do Google Cloud Storage
+    4. **Expiration Info**: Informa quando o vídeo expira (48h)
+    
+    ### ⏱️ Disponibilidade:
+    - **Imediata**: Assim que status = "completed"
+    - **Duração**: 48 horas (2 dias) após renderização
+    - **Auto-Delete**: GCS remove automaticamente após expiração
+    
+    ### 📊 Response de Sucesso:
+    ```json
+    {
+      "success": true,
+      "job_id": "abc123-def456-ghi789",
+      "video_url": "https://storage.googleapis.com/ffmpeg-api/videos/2025/08/user_123/video_abc123.mp4",
+      "shotstack_url": "https://cdn.shotstack.io/au/prod/...",
+      "status": "ready",
+      "file_size": 16850432,
+      "duration": 5.0,
+      "expires_at": "2025-08-17T10:30:00Z"
+    }
+    ```
+    
+    ### 🔗 URLs Disponíveis:
+    - **video_url**: Google Cloud Storage (recomendado) - Mais rápido e confiável
+    - **shotstack_url**: CDN Backup - URL alternativa para redundância
+    
+    ### ⚠️ Status Possíveis:
+    - **ready**: Vídeo disponível para download
+    - **expired**: Vídeo expirado (>48h)
+    - **processing**: Ainda renderizando
+    - **failed**: Falha na renderização
+    
+    ### 🚫 Erros Comuns:
+    - **404**: Job ID não encontrado ou expirado
+    - **425**: Vídeo ainda processando (tente novamente em 30s)
+    - **410**: Vídeo expirado (>48h desde criação)
+    
+    ### 💡 Dicas de Uso:
+    - **Download Direto**: Use video_url para download/streaming
+    - **Integração**: Ideal para N8N, webhooks e automações
+    - **Batch Access**: Para múltiplos vídeos, use `/batch/{batch_id}/videos`
+    
+    ### 🔄 Workflow Recomendado:
+    1. Renderize vídeo via `/render` ou `/batch-render-array`
+    2. Monitore status via `/job/{job_id}`
+    3. Quando completed, acesse este endpoint
+    4. Faça download/use a URL dentro de 48h
     """
     try:
         # Get Redis pool from app state
@@ -632,8 +807,103 @@ async def create_batch_render_array(
     current_user: Dict = Depends(get_current_user)
 ):
     """
-    Process multiple render requests from n8n array format
-    Optimized for n8n direct array input: [obj1, obj2, obj3, ...]
+    ## 🤖 Renderização em Lote - Formato N8N Array
+    
+    **Endpoint otimizado para N8N workflows** - processa múltiplos vídeos simultaneamente através da plataforma Aion Videos.
+    
+    ### 🎯 Ideal Para:
+    - **N8N Workflows**: Integração direta sem reestruturação
+    - **Produção em Escala**: 2-50 vídeos por requisição
+    - **Automação**: Pipelines de vídeo automatizados
+    - **Batch Processing**: Processamento eficiente em lote
+    
+    ### 📋 Como Funciona:
+    1. **Array Input**: Aceita array direto `[obj1, obj2, obj3, ...]`
+    2. **Token Calculation**: Calcula tokens total (1 por vídeo)
+    3. **Parallel Processing**: Todos os jobs são enfileirados simultaneamente
+    4. **Batch Tracking**: Retorna `batch_id` único para monitoramento
+    5. **Individual Access**: Cada vídeo acessível via `job_id` individual
+    
+    ### ⚡ Performance:
+    - **Processamento Paralelo**: Até 50 vídeos simultâneos
+    - **Tempo Otimizado**: Não há overhead entre vídeos
+    - **Worker Pool**: 20-180 workers disponíveis (escalável)
+    
+    ### 🎯 Formato de Input (Array):
+    ```json
+    [
+      {
+        "timeline": {
+          "background": "#000000",
+          "tracks": [{
+            "clips": [{
+              "asset": {
+                "type": "title",
+                "text": "Vídeo 1",
+                "style": "minimal"
+              },
+              "start": 0,
+              "length": 3
+            }]
+          }]
+        },
+        "output": {
+          "format": "mp4",
+          "width": "1280",
+          "height": "720"
+        }
+      },
+      {
+        "timeline": {
+          "background": "#0000FF",
+          "tracks": [{
+            "clips": [{
+              "asset": {
+                "type": "title", 
+                "text": "Vídeo 2",
+                "style": "minimal"
+              },
+              "start": 0,
+              "length": 3
+            }]
+          }]
+        },
+        "output": {
+          "format": "mp4",
+          "width": "1920", 
+          "height": "1080"
+        }
+      }
+    ]
+    ```
+    
+    ### 📊 Response:
+    ```json
+    {
+      "success": true,
+      "batch_id": "batch_abc123def456",
+      "job_ids": ["abc123_000", "abc123_001"],
+      "total_videos": 2,
+      "tokens_consumed": 2
+    }
+    ```
+    
+    ### 🔄 Monitoramento:
+    - **Batch Status**: `GET /batch/{batch_id}/status`
+    - **All Videos**: `GET /batch/{batch_id}/videos` 
+    - **Individual**: `GET /videos/{job_id}`
+    
+    ### 💰 Custo:
+    - **1 token por vídeo** no array
+    - **Máximo 50 vídeos** por requisição
+    - **Reembolso automático** para falhas individuais
+    
+    ### 🎉 N8N Integration:
+    1. **HTTP Request Node**: POST para este endpoint
+    2. **Body**: Array direto dos vídeos
+    3. **Wait Node**: 60-180 segundos
+    4. **Status Check**: Verificar batch status
+    5. **Download**: Acessar vídeos via URLs GCS
     """
     try:
         user_id = current_user["user_id"]
