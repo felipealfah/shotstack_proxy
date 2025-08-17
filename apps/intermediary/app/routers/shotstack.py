@@ -69,7 +69,7 @@ class RenderResponse(BaseModel):
     success: bool = Field(..., description="✅ Indica se o job foi aceito com sucesso")
     message: str = Field(..., description="📝 Mensagem descritiva do resultado", example="Render job queued successfully")
     job_id: str = Field(..., description="🆔 ID único do job para monitoramento", example="cf6a6061-9204-4d9b-b363-3a896d11661e")
-    estimated_tokens: int = Field(1, description="💰 Tokens consumidos para este render", example=1)
+    estimated_tokens: float = Field(1.0, description="💰 Tokens consumidos para este render (proporcional)", example=0.5)
     
 class JobStatusResponse(BaseModel):
     job_id: str
@@ -151,7 +151,7 @@ class BatchRenderResponse(BaseModel):
         description="🎬 Lista de IDs individuais para cada vídeo",
         example=["abc123_000", "abc123_001", "abc123_002"]
     )
-    estimated_tokens_total: int = Field(..., description="💰 Total de tokens consumidos", example=5)
+    estimated_tokens_total: float = Field(..., description="💰 Total de tokens consumidos (proporcional)", example=2.5)
 
 
 @router.post("/render", response_model=RenderResponse)
@@ -225,8 +225,13 @@ async def create_render(
         token_service = TokenService()
         user_tokens = await token_service.get_user_tokens(user_id)
         
-        # Calculate tokens needed (simplified - 1 token per render for now)
-        tokens_needed = 1
+        # Calculate tokens needed based on video duration (proportional)
+        from ..services.timeline_parser import TimelineParser
+        
+        duration_seconds = TimelineParser.extract_total_duration(render_request.timeline)
+        tokens_needed = await token_service.calculate_tokens_for_duration(duration_seconds)
+        
+        logger.info(f"Video duration: {duration_seconds}s, tokens needed: {tokens_needed}")
         
         if user_tokens < tokens_needed:
             raise HTTPException(
@@ -568,20 +573,24 @@ async def get_video_links(
                     if shotstack_url:
                         # Primeiro, verificar se o arquivo já existe no GCS
                         gcs_path = destination_service._generate_gcs_path(user_id, job_id)
-                        video_url = destination_service.get_gcs_public_url(gcs_path)
+                        potential_video_url = destination_service.get_gcs_public_url(gcs_path)
                         
                         # Verificar se arquivo existe no GCS
                         import httpx
+                        video_url = None  # Inicializar como None
+                        
                         try:
                             async with httpx.AsyncClient(timeout=settings.GCS_HEAD_REQUEST_TIMEOUT_SECONDS) as client:
-                                gcs_check = await client.head(video_url)
+                                gcs_check = await client.head(potential_video_url)
                                 if gcs_check.status_code == 200:
-                                    logger.info(f"Video already exists in GCS: {video_url}")
+                                    # ✅ Arquivo existe no GCS, pode retornar URL
+                                    video_url = potential_video_url
+                                    logger.info(f"Video confirmed in GCS: {video_url}")
                                 else:
                                     raise httpx.HTTPStatusError("File not found", request=None, response=gcs_check)
                         except:
                             # Arquivo não existe no GCS, iniciar transferência em background
-                            logger.info(f"Starting background transfer for render {shotstack_render_id}")
+                            logger.info(f"Video not found in GCS, starting background transfer for render {shotstack_render_id}")
                             
                             transfer_data = {
                                 "shotstack_url": shotstack_url,
@@ -599,27 +608,24 @@ async def get_video_links(
                             transfer_job_id = f"transfer_{job_id}"
                             logger.info(f"Background transfer queued: {transfer_job_id}")
                             
-                            # Retornar URL do GCS (mesmo que ainda não exista)
-                            # O arquivo estará disponível em breve
+                            # ✅ NÃO retornar URL até que upload seja concluído
+                            video_url = None
                         
                     else:
                         logger.error(f"No Shotstack URL found in response for render {shotstack_render_id}")
-                        gcs_path = destination_service._generate_gcs_path(user_id, job_id)
-                        video_url = destination_service.get_gcs_public_url(gcs_path)
+                        video_url = None
                     
                     # URLs de poster e thumbnail (ficam no Shotstack CDN)
                     poster_url = shotstack_data.get("poster")
                     thumbnail_url = shotstack_data.get("thumbnail")
                     
-                    # Verificar status da transferência
-                    transfer_status = "completed"
-                    try:
-                        async with httpx.AsyncClient(timeout=3.0) as client:
-                            gcs_check = await client.head(video_url)
-                            if gcs_check.status_code != 200:
-                                transfer_status = "in_progress"
-                    except:
+                    # Determinar status da transferência baseado na existência da URL
+                    if video_url:
+                        transfer_status = "completed"
+                        logger.info(f"Transfer status: completed - video available at {video_url}")
+                    else:
                         transfer_status = "in_progress"
+                        logger.info(f"Transfer status: in_progress - video upload queued for job {job_id}")
                     
                     return VideoLinksResponse(
                         success=True,
@@ -704,8 +710,31 @@ async def create_batch_render(
                 detail="No renders provided in batch"
             )
         
-        # Calculate total tokens needed
-        total_tokens = len(renders_list)
+        # Calculate total tokens needed based on video durations (proportional)
+        from ..services.timeline_parser import TimelineParser
+        
+        total_tokens = 0
+        duration_details = []
+        
+        for i, render_data in enumerate(renders_list):
+            if not isinstance(render_data, dict) or 'timeline' not in render_data:
+                logger.warning(f"Skipping invalid render at index {i} - missing timeline")
+                continue
+                
+            duration_seconds = TimelineParser.extract_total_duration(render_data['timeline'])
+            tokens_for_this_video = await token_service.calculate_tokens_for_duration(duration_seconds)
+            total_tokens += tokens_for_this_video
+            
+            duration_details.append({
+                "index": i,
+                "duration_seconds": duration_seconds,
+                "tokens": tokens_for_this_video
+            })
+        
+        logger.info(f"Structured batch token calculation: {len(duration_details)} videos, total {total_tokens} tokens")
+        for detail in duration_details:
+            logger.info(f"  Video {detail['index']}: {detail['duration_seconds']}s = {detail['tokens']} tokens")
+        
         user_tokens = await token_service.get_user_tokens(user_id)
         
         if user_tokens < total_tokens:
@@ -750,6 +779,13 @@ async def create_batch_render(
             
             output_config["destinations"] = destinations
             
+            # Get tokens for this specific video from duration_details
+            tokens_for_this_video = 1  # fallback
+            for detail in duration_details:
+                if detail["index"] == i:
+                    tokens_for_this_video = detail["tokens"]
+                    break
+            
             # Prepare job data
             job_data = {
                 "user_id": user_id,
@@ -758,7 +794,7 @@ async def create_batch_render(
                 "timeline": timeline,
                 "output": output_config,
                 "webhook": webhook,
-                "tokens_consumed": 1,
+                "tokens_consumed": tokens_for_this_video,
                 "created_at": datetime.utcnow().isoformat()
             }
             
@@ -774,7 +810,7 @@ async def create_batch_render(
                 user_id=user_id,
                 job_id=job_id,
                 status='queued',
-                tokens_consumed=1,
+                tokens_consumed=tokens_for_this_video,
                 metadata={"batch_id": batch_id, "batch_index": i}
             )
         
@@ -917,8 +953,31 @@ async def create_batch_render_array(
                 detail="Invalid array format"
             )
         
-        # Calculate total tokens needed
-        total_tokens = len(renders_array)
+        # Calculate total tokens needed based on video durations (proportional)
+        from ..services.timeline_parser import TimelineParser
+        
+        total_tokens = 0
+        duration_details = []
+        
+        for i, render_data in enumerate(renders_array):
+            if not isinstance(render_data, dict) or 'timeline' not in render_data:
+                logger.warning(f"Skipping invalid render at index {i} - missing timeline")
+                continue
+                
+            duration_seconds = TimelineParser.extract_total_duration(render_data['timeline'])
+            tokens_for_this_video = await token_service.calculate_tokens_for_duration(duration_seconds)
+            total_tokens += tokens_for_this_video
+            
+            duration_details.append({
+                "index": i,
+                "duration_seconds": duration_seconds,
+                "tokens": tokens_for_this_video
+            })
+        
+        logger.info(f"Batch token calculation: {len(duration_details)} videos, total {total_tokens} tokens")
+        for detail in duration_details:
+            logger.info(f"  Video {detail['index']}: {detail['duration_seconds']}s = {detail['tokens']} tokens")
+        
         user_tokens = await token_service.get_user_tokens(user_id)
         
         if user_tokens < total_tokens:
@@ -976,6 +1035,13 @@ async def create_batch_render_array(
             destinations = destination_service.get_default_destinations(user_id, job_id)
             output_config["destinations"] = destinations
             
+            # Get tokens for this specific video from duration_details
+            tokens_for_this_video = 1  # fallback
+            for detail in duration_details:
+                if detail["index"] == i:
+                    tokens_for_this_video = detail["tokens"]
+                    break
+            
             # Prepare job data
             job_data = {
                 "user_id": user_id,
@@ -984,7 +1050,7 @@ async def create_batch_render_array(
                 "timeline": render_data['timeline'],
                 "output": output_config,
                 "webhook": render_data.get('webhook'),
-                "tokens_consumed": 1,
+                "tokens_consumed": tokens_for_this_video,
                 "created_at": datetime.utcnow().isoformat()
             }
             
@@ -1000,23 +1066,23 @@ async def create_batch_render_array(
                 user_id=user_id,
                 job_id=job_id,
                 status='queued',
-                tokens_consumed=1,
+                tokens_consumed=tokens_for_this_video,
                 metadata={"batch_id": batch_id, "batch_index": i, "n8n_array": True}
             )
         
-        # Consume tokens for entire batch
+        # Consume tokens for entire batch (proportional total)
         actual_jobs = len(job_ids)
-        await token_service.consume_tokens(user_id, actual_jobs, f"N8N Batch: {actual_jobs} videos")
+        await token_service.consume_tokens(user_id, total_tokens, f"N8N Batch: {actual_jobs} videos, {total_tokens} tokens")
         
         logger.info(f"N8N Batch {batch_id}: {actual_jobs} jobs queued for user {user_id}")
         
         return BatchRenderResponse(
             success=True,
-            message=f"N8N Batch processed: {actual_jobs} videos queued",
+            message=f"N8N Batch processed: {actual_jobs} videos queued, {total_tokens} tokens consumed",
             batch_id=batch_id,
             total_jobs=actual_jobs,
             job_ids=job_ids,
-            estimated_tokens_total=actual_jobs
+            estimated_tokens_total=total_tokens
         )
         
     except HTTPException:
@@ -1128,12 +1194,15 @@ async def get_batch_videos(
                 if not shotstack_render_id:
                     continue
                 
-                # Generate GCS URL directly without external calls (FAST)
+                # Generate GCS path for potential URL (FAST - no external calls)
                 from ..services.destination_service import DestinationService
                 destination_service = DestinationService()
                 user_id = job_result.get("user_id", "unknown")
                 gcs_path = destination_service._generate_gcs_path(user_id, job_id)
-                video_url = destination_service.get_gcs_public_url(gcs_path)
+                
+                # ✅ Para batch endpoints otimizados: retornar URL potencial com status
+                # O frontend pode polling para verificar quando estiver disponível
+                potential_video_url = destination_service.get_gcs_public_url(gcs_path)
                 
                 # Queue background transfer without waiting (ASYNC)
                 transfer_data = {
@@ -1152,9 +1221,10 @@ async def get_batch_videos(
                 batch_videos.append({
                     "job_id": job_id,
                     "batch_index": i,
-                    "video_url": video_url,
+                    "video_url": potential_video_url,  # URL potencial - pode não estar disponível ainda
                     "render_id": shotstack_render_id,
-                    "transfer_status": "auto_transfer"  # Indica transferência automática em andamento
+                    "transfer_status": "pending",  # Mais preciso que "auto_transfer"
+                    "note": "URL may not be available immediately - check transfer_status"
                 })
                 
             except Exception as job_error:
@@ -1192,6 +1262,64 @@ async def shotstack_webhook(request: Request):
         raise HTTPException(
             status_code=500,
             detail=f"Webhook processing error: {str(e)}"
+        )
+
+
+@router.get("/video-status/{job_id}")
+async def check_video_upload_status(
+    job_id: str,
+    request: Request,
+    current_user: Dict = Depends(get_current_user)
+):
+    """
+    Verifica se um vídeo foi transferido para GCS e está disponível
+    
+    Args:
+        job_id: ID do job de renderização
+        
+    Returns:
+        Status do upload e URL se disponível
+    """
+    try:
+        user_id = current_user.get("id", "unknown")
+        
+        # Generate potential GCS URL
+        from ..services.destination_service import DestinationService
+        destination_service = DestinationService()
+        gcs_path = destination_service._generate_gcs_path(user_id, job_id)
+        potential_video_url = destination_service.get_gcs_public_url(gcs_path)
+        
+        # Check if file exists in GCS
+        import httpx
+        try:
+            async with httpx.AsyncClient(timeout=settings.GCS_HEAD_REQUEST_TIMEOUT_SECONDS) as client:
+                gcs_check = await client.head(potential_video_url)
+                if gcs_check.status_code == 200:
+                    return {
+                        "success": True,
+                        "status": "completed",
+                        "video_url": potential_video_url,
+                        "message": "Video is available in GCS"
+                    }
+                else:
+                    return {
+                        "success": True,
+                        "status": "in_progress", 
+                        "video_url": None,
+                        "message": "Video upload still in progress"
+                    }
+        except Exception as e:
+            return {
+                "success": True,
+                "status": "in_progress",
+                "video_url": None, 
+                "message": f"Video upload still in progress: {str(e)}"
+            }
+            
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error checking video status: {str(e)}"
         )
 
 

@@ -116,15 +116,25 @@ class TokenService:
             logger.error(f"Error adding tokens for user {user_id}: {e}")
             return False
     
-    async def calculate_tokens_for_duration(self, duration_seconds: int) -> int:
+    async def calculate_tokens_for_duration(self, duration_seconds: int) -> float:
         """
         Calculate required tokens based on video duration
-        Business rule: 1 token = 1 minute of video
+        Business rule: 1 token = 60 segundos (proporcional)
+        
+        Examples:
+        - 30s = 0.5 tokens
+        - 10s = 0.17 tokens  
+        - 90s = 1.5 tokens
+        - 120s = 2.0 tokens
         """
-        # Convert seconds to minutes and round up
-        import math
-        duration_minutes = math.ceil(duration_seconds / 60)
-        return max(1, duration_minutes)  # Minimum 1 token
+        if duration_seconds <= 0:
+            return 0.1  # Minimum 0.1 token for invalid/empty videos
+        
+        # Cálculo proporcional: segundos / 60
+        tokens_needed = duration_seconds / 60.0
+        
+        # Arredondar para 2 casas decimais para precisão
+        return round(tokens_needed, 2)
     
     async def get_user_transaction_history(self, user_id: str, limit: int = 50) -> list:
         """
