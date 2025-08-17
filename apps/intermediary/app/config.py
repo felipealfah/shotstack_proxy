@@ -49,6 +49,11 @@ class Settings(BaseSettings):
     GCP_SYNC_RETENTION_DAYS: int = 7  # Quantos dias para trás verificar
     GCP_SYNC_LOG_LEVEL: str = "INFO"  # Log level para sincronização
     
+    # Dual Authentication Configuration (Email + API Key Security)
+    DUAL_AUTH_ENABLED: bool = True  # Habilitar validação dupla
+    DUAL_AUTH_STRICT_MODE: bool = False  # Modo strict (sem fallback para API key simples)
+    DUAL_AUTH_LOG_ATTEMPTS: bool = True  # Log tentativas de acesso
+    
     class Config:
         env_file = ".env"
 

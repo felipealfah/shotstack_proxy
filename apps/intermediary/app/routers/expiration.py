@@ -8,7 +8,7 @@ from typing import Dict, Any
 import logging
 
 from ..services.expiration_service import expiration_service, run_expiration_sync, get_stats
-from ..middleware.auth import verify_api_key
+from ..middleware.auth import verify_api_key, verify_api_key_with_email
 from ..config import settings
 
 logger = logging.getLogger(__name__)
@@ -17,7 +17,7 @@ router = APIRouter()
 
 @router.get("/expiration/stats")
 async def get_expiration_stats(
-    current_user: dict = Depends(verify_api_key)
+    current_user: dict = Depends(verify_api_key_with_email)
 ) -> Dict[str, Any]:
     """
     Get video expiration statistics for the current user.
@@ -38,7 +38,7 @@ async def get_expiration_stats(
 
 @router.post("/expiration/sync")
 async def trigger_expiration_sync(
-    current_user: dict = Depends(verify_api_key)
+    current_user: dict = Depends(verify_api_key_with_email)
 ) -> Dict[str, Any]:
     """
     Manually trigger expiration sync process.
@@ -60,7 +60,7 @@ async def trigger_expiration_sync(
 
 @router.get("/expiration/user-videos")
 async def get_user_video_status(
-    current_user: dict = Depends(verify_api_key)
+    current_user: dict = Depends(verify_api_key_with_email)
 ) -> Dict[str, Any]:
     """
     Get detailed video status for the current user including expiration info.

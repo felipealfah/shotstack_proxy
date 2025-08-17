@@ -15,13 +15,12 @@ export default defineConfig(({ mode }) => ({
     componentTagger(),
   ].filter(Boolean),
   resolve: {
-    alias: {
-      "@": path.resolve(__dirname, "./src"),
-      "@/components": path.resolve(__dirname, "./src/components"),
-      "@/hooks": path.resolve(__dirname, "./src/hooks"),
-      "@/integrations": path.resolve(__dirname, "./src/integrations"),
-      "@/lib": path.resolve(__dirname, "./src/lib"),
-    },
+    alias: [
+      {
+        find: "@",
+        replacement: path.resolve(__dirname, "./src"),
+      },
+    ],
   },
   build: {
     rollupOptions: {

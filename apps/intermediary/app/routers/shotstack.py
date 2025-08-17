@@ -11,7 +11,7 @@ from ..config import settings
 from ..services.token_service import TokenService
 from ..services.usage_service import UsageService
 from ..services.destination_service import DestinationService
-from ..middleware.auth import get_current_user
+from ..middleware.auth import get_current_user, verify_api_key_with_email
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -159,7 +159,7 @@ async def create_render(
     render_request: RenderRequest,
     background_tasks: BackgroundTasks,
     request: Request,
-    current_user: Dict = Depends(get_current_user)
+    current_user: Dict = Depends(verify_api_key_with_email)
 ):
     """
     ## 🎬 Renderização Individual de Vídeo
@@ -319,7 +319,7 @@ async def create_render(
 async def get_job_status(
     job_id: str,
     request: Request,
-    current_user: Dict = Depends(get_current_user)
+    current_user: Dict = Depends(verify_api_key_with_email)
 ):
     """
     Get job status from Redis queue
@@ -391,7 +391,7 @@ async def get_job_status(
 async def get_shotstack_render_status(
     render_id: str,
     request: Request,
-    current_user: Dict = Depends(get_current_user)
+    current_user: Dict = Depends(verify_api_key_with_email)
 ):
     """
     Check Shotstack render status directly (for completed jobs)
@@ -431,7 +431,7 @@ async def get_shotstack_render_status(
 async def get_video_links(
     job_id: str,
     request: Request,
-    current_user: Dict = Depends(get_current_user)
+    current_user: Dict = Depends(verify_api_key_with_email)
 ):
     """
     ## 🎬 Acesso e Download de Vídeos
@@ -667,7 +667,7 @@ async def get_video_links(
 async def create_batch_render(
     request: Request,
     background_tasks: BackgroundTasks,
-    current_user: Dict = Depends(get_current_user)
+    current_user: Dict = Depends(verify_api_key_with_email)
 ):
     """
     Process multiple render requests in a single batch
@@ -840,7 +840,7 @@ async def create_batch_render(
 async def create_batch_render_array(
     renders_array: List[Dict[str, Any]],
     request: Request,
-    current_user: Dict = Depends(get_current_user)
+    current_user: Dict = Depends(verify_api_key_with_email)
 ):
     """
     ## 🤖 Renderização em Lote - Formato N8N Array
@@ -1098,7 +1098,7 @@ async def create_batch_render_array(
 async def get_batch_status(
     batch_id: str,
     request: Request,
-    current_user: Dict = Depends(get_current_user)
+    current_user: Dict = Depends(verify_api_key_with_email)
 ):
     """
     Get status of all jobs in a batch
@@ -1162,7 +1162,7 @@ async def get_batch_status(
 async def get_batch_videos(
     batch_id: str,
     request: Request,
-    current_user: Dict = Depends(get_current_user)
+    current_user: Dict = Depends(verify_api_key_with_email)
 ):
     """
     Get video links for all jobs in a batch (optimized for N8N)
@@ -1269,7 +1269,7 @@ async def shotstack_webhook(request: Request):
 async def check_video_upload_status(
     job_id: str,
     request: Request,
-    current_user: Dict = Depends(get_current_user)
+    current_user: Dict = Depends(verify_api_key_with_email)
 ):
     """
     Verifica se um vídeo foi transferido para GCS e está disponível
