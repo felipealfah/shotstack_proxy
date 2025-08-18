@@ -47,6 +47,54 @@ export type Database = {
         }
         Relationships: []
       }
+      renders: {
+        Row: {
+          id: string
+          user_id: string
+          job_id: string | null
+          project_name: string | null
+          status: string
+          duration_seconds: number | null
+          tokens_used: number | null
+          shotstack_render_id: string | null
+          video_url: string | null
+          created_at: string
+          updated_at: string
+          is_expired: boolean
+          expires_at: string | null
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          job_id?: string | null
+          project_name?: string | null
+          status: string
+          duration_seconds?: number | null
+          tokens_used?: number | null
+          shotstack_render_id?: string | null
+          video_url?: string | null
+          created_at?: string
+          updated_at?: string
+          is_expired?: boolean
+          expires_at?: string | null
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          job_id?: string | null
+          project_name?: string | null
+          status?: string
+          duration_seconds?: number | null
+          tokens_used?: number | null
+          shotstack_render_id?: string | null
+          video_url?: string | null
+          created_at?: string
+          updated_at?: string
+          is_expired?: boolean
+          expires_at?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

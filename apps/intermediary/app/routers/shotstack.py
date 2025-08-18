@@ -16,6 +16,7 @@ from ..middleware.auth import get_current_user, verify_api_key_with_email
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
+
 class RenderRequest(BaseModel):
     timeline: Dict[str, Any] = Field(
         ...,

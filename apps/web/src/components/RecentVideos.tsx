@@ -47,18 +47,20 @@ export const RecentVideos = ({ user }: RecentVideosProps) => {
       setLoading(true);
       setError(null);
 
-      // Fetch all renders from last 2 days - APENAS renders completed e não expirados
-      const twoDaysAgo = new Date();
-      twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
+      // Fetch recent completed and non-expired renders
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
       
       const { data, error: fetchError } = await supabase
         .from('renders')
         .select('id, job_id, project_name, video_url, status, created_at, updated_at, expires_at, is_expired, duration_seconds, shotstack_render_id')
         .eq('user_id', user.id)
-        .eq('status', 'completed') // FILTRAR: Apenas renders que deram certo
-        .eq('is_expired', false) // FILTRAR: Apenas vídeos não expirados
-        .gte('created_at', twoDaysAgo.toISOString()) // FILTRAR: Últimos 2 dias
-        .order('created_at', { ascending: false }); // Sem limite - buscar todos dos últimos 2 dias
+        .eq('status', 'completed') // Only successful renders
+        .eq('is_expired', false) // Only non-expired videos
+        .gte('created_at', sevenDaysAgo.toISOString()) // Last 7 days
+        .order('created_at', { ascending: false })
+        .limit(recentVideosLimit);
+
 
       if (fetchError) {
         // If table doesn't exist, show placeholder
@@ -275,7 +277,7 @@ export const RecentVideos = ({ user }: RecentVideosProps) => {
           Vídeos Recentes
         </CardTitle>
         <CardDescription>
-          {videos.length} vídeos dos últimos 2 dias (não expirados)
+          Seus últimos vídeos concluídos com sucesso
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -307,7 +309,7 @@ export const RecentVideos = ({ user }: RecentVideosProps) => {
                       </code>
                     )}
                   </div>
-
+                  
                   {/* Expiration info for completed videos */}
                   {video.status === 'completed' && (
                     <div className="mt-2">

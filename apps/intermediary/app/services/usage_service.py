@@ -32,7 +32,7 @@ class UsageService:
                 'project_name': f'API Render {shotstack_job_id or job_id or "Unknown"}',
                 'status': status,
                 'duration_seconds': video_duration_seconds,
-                'tokens_used': tokens_consumed
+                'tokens_used': int(round(tokens_consumed * 100)) if tokens_consumed is not None else 0
             }
             
             response = self.supabase.table('renders').insert(render_data).execute()
@@ -70,7 +70,7 @@ class UsageService:
             if status:
                 update_data['status'] = status
             if tokens_consumed is not None:
-                update_data['tokens_used'] = tokens_consumed
+                update_data['tokens_used'] = int(round(tokens_consumed * 100))
             if video_duration_seconds is not None:
                 update_data['duration_seconds'] = video_duration_seconds
             if shotstack_render_id:
