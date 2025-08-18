@@ -184,11 +184,19 @@ async def create_render(
     - Tokens são consumidos imediatamente ao enfileirar o job
     - Reembolso automático em caso de falha
     
+    ### 🔐 Autenticação Obrigatória:
+    **Headers necessários:**
+    ```
+    Authorization: Bearer YOUR_API_KEY
+    X-User-Email: your@email.com
+    ```
+    
     ### 📊 Status Codes:
     - **202**: Job aceito e enfileirado com sucesso
     - **402**: Tokens insuficientes
     - **400**: Payload inválido
-    - **401**: API Key inválida
+    - **401**: API Key inválida ou email não corresponde
+    - **422**: Header X-User-Email ausente
     
     ### 🎯 Exemplo de Timeline:
     ```json
@@ -444,6 +452,13 @@ async def get_video_links(
     2. **Status Check**: Confirma que a renderização foi concluída
     3. **GCS URLs**: Retorna URLs diretas do Google Cloud Storage
     4. **Expiration Info**: Informa quando o vídeo expira (48h)
+    
+    ### 🔐 Autenticação Obrigatória:
+    **Headers necessários:**
+    ```
+    Authorization: Bearer YOUR_API_KEY
+    X-User-Email: your@email.com
+    ```
     
     ### ⏱️ Disponibilidade:
     - **Imediata**: Assim que status = "completed"

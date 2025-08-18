@@ -41,6 +41,7 @@ api_app = FastAPI(
     - ☁️ **Storage Automático**: Vídeos transferidos automaticamente para GCS
     - 💰 **Sistema de Tokens**: Cobrança baseada em uso
     - ⏱️ **Expiração 48h**: Gestão automática do ciclo de vida dos vídeos
+    - 🔐 **Segurança Máxima**: Sistema Email + API Key para isolamento total entre usuários
     
     ### 📋 Endpoints Principais:
     - `POST /v1/render` - Renderização individual  
@@ -48,8 +49,15 @@ api_app = FastAPI(
     - `GET /v1/videos/{job_id}` - Download e acesso aos vídeos
     - `GET /v1/job/{job_id}` - Status de processamento
     
+    ### 🔐 Autenticação (OBRIGATÓRIA):
+    **Sistema de Dupla Autenticação** - Headers obrigatórios:
+    ```
+    Authorization: Bearer YOUR_API_KEY
+    X-User-Email: seu@email.com
+    ```
+    
     ### 🎬 Workflow Típico:
-    1. **Autenticação**: Use sua API Key no header `Authorization: Bearer YOUR_KEY`
+    1. **Autenticação**: Headers `Authorization` + `X-User-Email` obrigatórios
     2. **Renderização**: Envie payload com timeline/assets/output
     3. **Monitoramento**: Aguarde 30s-2min para processamento
     4. **Download**: Acesse vídeo via URL do Google Cloud Storage
@@ -162,6 +170,15 @@ async def custom_swagger_ui_html():
                         <div style="background: linear-gradient(135deg, #0066cc 0%, #004499 100%); color: white; padding: 20px; border-radius: 8px; margin: 20px 0; text-align: center;">
                             <h3 style="margin: 0; color: white;">🚀 Ready to Start?</h3>
                             <p style="margin: 10px 0 0 0; opacity: 0.9;">Use the interactive examples below to test our API endpoints directly!</p>
+                        </div>
+                        <div style="background: #fff3cd; border: 1px solid #ffeaa7; color: #856404; padding: 15px; border-radius: 8px; margin: 20px 0;">
+                            <h4 style="margin: 0 0 10px 0; color: #856404;">🔐 Authentication Required</h4>
+                            <p style="margin: 0; font-size: 14px;">All endpoints require TWO headers:</p>
+                            <ul style="margin: 10px 0 0 20px; padding: 0;">
+                                <li><strong>Authorization:</strong> Bearer YOUR_API_KEY</li>
+                                <li><strong>X-User-Email:</strong> your@email.com</li>
+                            </ul>
+                            <p style="margin: 10px 0 0 0; font-size: 12px; opacity: 0.8;">Click "Authorize" button below to configure these headers.</p>
                         </div>
                     `;
                     infoElement.appendChild(customHeader);
