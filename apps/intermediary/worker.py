@@ -116,6 +116,10 @@ async def render_video_job(ctx, job_data: Dict[str, Any]) -> Dict[str, Any]:
         webhook = job_data.get('webhook')
         user_id = job_data.get('user_id', 'unknown')
         
+        # Calculate video duration from timeline (for immediate token calculation)
+        from app.services.timeline_parser import TimelineParser
+        calculated_duration = TimelineParser.extract_total_duration(timeline)
+        
         if not timeline or not output:
             raise ValueError("Missing required fields: timeline or output")
         
@@ -161,9 +165,10 @@ async def render_video_job(ctx, job_data: Dict[str, Any]) -> Dict[str, Any]:
                 "job_id": job_id,
                 "user_id": user_id,
                 "shotstack_render_id": render_id,
-                "shotstack_response": shotstack_response,
                 "processed_at": datetime.utcnow().isoformat(),
-                "tokens_consumed": job_data.get('tokens_consumed', 1)
+                "tokens_consumed": job_data.get('tokens_consumed', 1),
+                "calculated_duration": calculated_duration,  # Duration calculated from timeline
+                "video_duration": calculated_duration  # Default to calculated until we get actual
             }
             
             # ✅ SINCRONIZAR STATUS COM SUPABASE

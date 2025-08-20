@@ -107,6 +107,16 @@ class VideoLinksResponse(BaseModel):
         example="completed",
         enum=["completed", "in_progress", "pending", "failed"]
     )
+    duration_seconds: Optional[int] = Field(
+        None,
+        description="⏱️ Duração do vídeo em segundos",
+        example=30
+    )
+    duration_minutes: Optional[float] = Field(
+        None,
+        description="⏱️ Duração do vídeo em minutos (com decimais)",
+        example=0.5
+    )
 
 class TransferStatusResponse(BaseModel):
     success: bool
@@ -372,10 +382,34 @@ async def get_job_status(
             else:
                 status = 'completed'
             
+            # Clean result to remove internal Shotstack details
+            clean_result = {}
+            if isinstance(job_result, dict):
+                video_duration_seconds = job_result.get("video_duration")
+                video_duration_minutes = round(video_duration_seconds / 60, 2) if video_duration_seconds else None
+                
+                clean_result = {
+                    "status": job_result.get("status"),
+                    "job_id": job_result.get("job_id"),
+                    "user_id": job_result.get("user_id"),
+                    "processed_at": job_result.get("processed_at"),
+                    "tokens_consumed": job_result.get("tokens_consumed"),
+                    "duration_seconds": video_duration_seconds,
+                    "duration_minutes": video_duration_minutes
+                }
+                # Only include error details if failed
+                if job_result.get("status") == "failed":
+                    clean_result["error"] = job_result.get("error")
+                    clean_result["error_detail"] = job_result.get("error_detail")
+                    clean_result["tokens_refunded"] = job_result.get("tokens_refunded")
+                    clean_result["refund_status"] = job_result.get("refund_status")
+            else:
+                clean_result = {"data": job_result}
+            
             return JobStatusResponse(
                 job_id=job_id,
                 status=status,
-                result=job_result if isinstance(job_result, dict) else {"data": job_result},
+                result=clean_result,
                 error=job_result.get("error") if isinstance(job_result, dict) and job_result.get("status") == "failed" else None
             )
             
@@ -643,6 +677,10 @@ async def get_video_links(
                         transfer_status = "in_progress"
                         logger.info(f"Transfer status: in_progress - video upload queued for job {job_id}")
                     
+                    # Get video duration from job result
+                    video_duration_seconds = result.get("video_duration")
+                    video_duration_minutes = round(video_duration_seconds / 60, 2) if video_duration_seconds else None
+                    
                     return VideoLinksResponse(
                         success=True,
                         message="Video rendered successfully",
@@ -650,7 +688,9 @@ async def get_video_links(
                         poster_url=poster_url,
                         thumbnail_url=thumbnail_url,
                         render_id=shotstack_render_id,
-                        transfer_status=transfer_status
+                        transfer_status=transfer_status,
+                        duration_seconds=video_duration_seconds,
+                        duration_minutes=video_duration_minutes
                     )
                 else:
                     return VideoLinksResponse(
@@ -1140,10 +1180,15 @@ async def get_batch_status(
                 
                 if isinstance(job_result, dict):
                     status = job_result.get('status', 'unknown')
+                    video_duration_seconds = job_result.get('video_duration')
+                    video_duration_minutes = round(video_duration_seconds / 60, 2) if video_duration_seconds else None
+                    
                     batch_jobs.append({
                         "job_id": job_id,
                         "status": status,
                         "shotstack_render_id": job_result.get('shotstack_render_id'),
+                        "duration_seconds": video_duration_seconds,
+                        "duration_minutes": video_duration_minutes,
                         "error": job_result.get('error') if status == 'failed' else None
                     })
                 
@@ -1234,11 +1279,17 @@ async def get_batch_videos(
                     _job_id=f"ensure_{job_id}"
                 )
                 
+                # Get video duration from job result
+                video_duration_seconds = job_result.get("video_duration")
+                video_duration_minutes = round(video_duration_seconds / 60, 2) if video_duration_seconds else None
+                
                 batch_videos.append({
                     "job_id": job_id,
                     "batch_index": i,
                     "video_url": potential_video_url,  # URL potencial - pode não estar disponível ainda
                     "render_id": shotstack_render_id,
+                    "duration_seconds": video_duration_seconds,
+                    "duration_minutes": video_duration_minutes,
                     "transfer_status": "pending",  # Mais preciso que "auto_transfer"
                     "note": "URL may not be available immediately - check transfer_status"
                 })
