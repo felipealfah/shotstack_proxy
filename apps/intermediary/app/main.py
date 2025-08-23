@@ -16,6 +16,7 @@ from .config import settings
 from .routers import shotstack, health, expiration, gcp_sync
 from .middleware.auth import verify_api_key
 from .middleware.rate_limit import RateLimitMiddleware
+from .middleware.validation import create_validation_middleware
 from .services.expiration_service import run_expiration_sync, run_cleanup
 from .services.gcp_sync_service import run_gcp_sync_fallback
 
@@ -198,6 +199,13 @@ api_app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Payload validation middleware (runs before other middleware)
+validation_middleware = create_validation_middleware(
+    enabled=settings.VALIDATION_ENABLED,
+    sanitize=settings.SANITIZATION_ENABLED
+)
+api_app.add_middleware(validation_middleware)
 
 # Rate limiting middleware
 api_app.add_middleware(RateLimitMiddleware)

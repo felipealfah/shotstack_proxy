@@ -54,6 +54,13 @@ class Settings(BaseSettings):
     DUAL_AUTH_STRICT_MODE: bool = False  # Modo strict (sem fallback para API key simples)
     DUAL_AUTH_LOG_ATTEMPTS: bool = True  # Log tentativas de acesso
     
+    # Payload Validation Configuration (Issue #15)
+    VALIDATION_ENABLED: bool = True  # Feature flag para validação de payload
+    SANITIZATION_ENABLED: bool = True  # Auto-fix common issues (string nulls, etc)
+    VALIDATION_STRICT_MODE: bool = False  # Reject vs sanitize problematic payloads
+    VALIDATION_LOG_FAILURES: bool = True  # Log validation failures for debugging
+    VALIDATION_TIMEOUT_MS: int = 100  # Max validation time in milliseconds
+    
     class Config:
         env_file = ".env"
 
