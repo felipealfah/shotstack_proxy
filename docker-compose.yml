@@ -50,7 +50,8 @@ services:
     container_name: ss-inter-api
     restart: unless-stopped
     ports:
-      - "127.0.0.1:8002:8001"
+    #  - "127.0.0.1:8002:8001"
+     - "0.0.0.0:8002:8001"  # Uncomment for external access
     environment:
       # Supabase
       - SUPABASE_URL=${SUPABASE_URL}

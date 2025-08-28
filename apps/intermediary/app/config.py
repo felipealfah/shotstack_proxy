@@ -61,6 +61,13 @@ class Settings(BaseSettings):
     VALIDATION_LOG_FAILURES: bool = True  # Log validation failures for debugging
     VALIDATION_TIMEOUT_MS: int = 100  # Max validation time in milliseconds
     
+    # Stripe Payment Configuration (Issue #16)
+    STRIPE_SECRET_KEY: Optional[str] = None  # Stripe secret key (sk_test_... or sk_live_...)
+    STRIPE_PUBLISHABLE_KEY: Optional[str] = None  # Stripe publishable key (pk_test_... or pk_live_...)
+    STRIPE_WEBHOOK_SECRET: Optional[str] = None  # Webhook secret for signature verification
+    STRIPE_SUCCESS_URL: str = "http://localhost:3003/payment/success"  # Success redirect URL
+    STRIPE_CANCEL_URL: str = "http://localhost:3003/payment/cancel"  # Cancel redirect URL
+    
     class Config:
         env_file = ".env"
 

@@ -148,8 +148,12 @@ class TimelineValidator:
                             errors.append(f"{location}: {asset_type} asset missing required 'src' field")
                     
                     elif asset_type in ['title', 'caption']:
-                        if not asset.get('text'):
-                            errors.append(f"{location}: {asset_type} asset missing required 'text' field")
+                        # Caption can use 'src' with alias for automatic transcription
+                        # Title still requires 'text' field
+                        if asset_type == 'title' and not asset.get('text'):
+                            errors.append(f"{location}: title asset missing required 'text' field")
+                        elif asset_type == 'caption' and not asset.get('text') and not asset.get('src'):
+                            errors.append(f"{location}: caption asset missing required 'text' field (or 'src' for automatic transcription)")
                     
                     elif asset_type == 'html':
                         if not asset.get('html'):
@@ -157,8 +161,14 @@ class TimelineValidator:
                     
                     # Validate length compatibility
                     clip_length = clip.get('length')
-                    if clip_length in ['auto', 'end'] and asset_type in ['title', 'caption', 'html']:
-                        errors.append(f"{location}: Smart clip length '{clip_length}' not supported for {asset_type} assets")
+                    if clip_length in ['auto', 'end']:
+                        # Caption with alias can use 'end' for duration matching
+                        if asset_type == 'caption' and clip_length == 'end' and asset.get('src', '').startswith('alias://'):
+                            # Allow 'end' length for caption with alias (automatic transcription)
+                            pass
+                        elif asset_type in ['title', 'html'] or (asset_type == 'caption' and clip_length == 'auto'):
+                            errors.append(f"{location}: Smart clip length '{clip_length}' not supported for {asset_type} assets")
+                        # Note: 'auto' length is still not supported for caption without specific conditions
         
         except Exception as e:
             errors.append(f"Timeline structure validation failed: {str(e)}")

@@ -109,6 +109,10 @@ export const useDashboardMetrics = (user: User | null) => {
         if (balanceError.code === '42P01') {
           console.warn('Credit balance table does not exist yet. Using placeholder value.');
           tokenBalance = defaultTokenBalance; // Configurable default starting balance
+        } else if (balanceError.code === 'PGRST116') {
+          // No balance record found for user - create one with default balance
+          console.info('No balance record found for user. Using default balance.');
+          tokenBalance = defaultTokenBalance;
         } else {
           throw balanceError;
         }

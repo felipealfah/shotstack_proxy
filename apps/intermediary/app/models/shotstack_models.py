@@ -53,10 +53,21 @@ class ImageAsset(BaseModel):
         extra = "allow"
 
 class CaptionAsset(BaseModel):
-    """Caption asset with validation"""
+    """Caption asset with validation - supports both text and automatic transcription"""
     type: Literal["caption"] = "caption"
-    text: str = Field(..., min_length=1)
+    text: Optional[str] = Field(None, min_length=1)  # Optional when using src with alias
+    src: Optional[str] = None  # For alias:// references (automatic transcription)
     style: Optional[str] = None
+    font: Optional[Dict[str, Any]] = None
+    stroke: Optional[Dict[str, Any]] = None
+    
+    @validator('text')
+    def validate_text_or_src(cls, v, values):
+        """Either text or src (with alias) must be provided"""
+        src = values.get('src', '')
+        if not v and not (src and src.startswith('alias://')):
+            raise ValueError('Either text field or src with alias:// must be provided for caption')
+        return v
     
     class Config:
         extra = "allow"
@@ -133,8 +144,18 @@ class ClipModel(BaseModel):
                 # Validate that smart clips are used with appropriate assets
                 asset = values.get('asset')
                 if asset and hasattr(asset, 'type'):
-                    if asset.type in ['title', 'caption', 'html']:
+                    # Special handling for caption with alias (automatic transcription)
+                    if asset.type == 'caption' and v_cleaned == 'end':
+                        # Allow 'end' length for caption with alias (automatic transcription)
+                        if hasattr(asset, 'src') and asset.src and asset.src.startswith('alias://'):
+                            return v_cleaned
+                        else:
+                            raise ValueError(f"Smart clip length 'end' for caption requires 'src' with alias:// reference")
+                    elif asset.type in ['title', 'html']:
                         raise ValueError(f"Smart clip length '{v_cleaned}' is not supported for {asset.type} assets. Use a numeric value instead")
+                    elif asset.type == 'caption' and v_cleaned == 'auto':
+                        # Auto is still not supported for caption
+                        raise ValueError(f"Smart clip length 'auto' is not supported for caption assets. Use 'end' with alias or numeric value")
                     elif asset.type in ['video', 'audio'] and not hasattr(asset, 'src'):
                         raise ValueError(f"Smart clip length '{v_cleaned}' requires a valid 'src' URL for {asset.type} assets")
                 return v_cleaned

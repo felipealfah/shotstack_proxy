@@ -1,6 +1,6 @@
 # Shotstack Intermediary Platform
 
-An intermediary platform that sits between users and the Shotstack API for video rendering, providing token-based billing and automatic Google Cloud Storage integration.
+An intelligent intermediary platform that sits between users and the Shotstack API for video rendering, providing token-based billing, automatic transcription capabilities, and seamless Google Cloud Storage integration.
 
 ## 🏗️ Architecture
 
@@ -14,21 +14,22 @@ Users (n8n) → Next.js Frontend → FastAPI Intermediary → Shotstack API
 
 ## 📦 Services
 
-### 🌐 `/apps/web` - Next.js Frontend + Backend
-- **Framework**: Next.js 15 App Router with TypeScript
-- **Features**: User registration, token purchase, API key management
+### 🌐 `/apps/web` - React + Vite Frontend
+- **Framework**: React 18 + Vite with TypeScript
+- **Features**: User dashboard, token purchase, API key management, real-time metrics
 - **Database**: Supabase (PostgreSQL managed)
 - **Payments**: Stripe integration
-- **Authentication**: Supabase Auth
-- **UI**: Shadcn UI components
-- **API Docs**: Interactive Swagger UI at `/docs`
+- **Authentication**: Supabase Auth with dual authentication
+- **UI**: Shadcn UI components + Tailwind CSS
+- **Dashboard**: Real-time video management with expiration tracking
 
 ### ⚡ `/apps/intermediary` - FastAPI Service
 - **Framework**: FastAPI (Python)
-- **Features**: Request proxying, token validation, video transfer
-- **Queue**: Redis with ARQ workers
-- **Storage**: Automatic Google Cloud Storage integration
-- **Authentication**: JWT validation with Supabase
+- **Features**: Intelligent request proxying, comprehensive payload validation, automatic transcription support
+- **Queue**: Redis with ARQ workers for background processing
+- **Storage**: Automatic Google Cloud Storage integration with 2-day lifecycle
+- **Authentication**: Dual Email + API Key validation with Supabase
+- **Validation**: Pydantic models supporting all Shotstack features including smart clips
 
 ## 🚀 Quick Start with Docker
 
@@ -95,13 +96,15 @@ Users (n8n) → Next.js Frontend → FastAPI Intermediary → Shotstack API
 
 ## 🔧 Key Features
 
-- **🎬 Video Rendering**: Proxy requests to Shotstack with authentication
+- **🎬 Video Rendering**: Proxy requests to Shotstack with intelligent payload validation
+- **🎤 Automatic Transcription**: Caption generation from audio using Shotstack's AI transcription
 - **☁️ Auto GCS Transfer**: Videos automatically transferred to Google Cloud Storage  
-- **💰 Token Billing**: Users charged tokens per render
-- **🔐 Supabase Auth**: JWT authentication with Row Level Security
+- **💰 Token Billing**: Users charged tokens per render with proportional pricing
+- **🔐 Dual Authentication**: Email + API Key security system with Row Level Security
 - **⚡ Background Jobs**: Async video transfer using ARQ workers
-- **📊 Analytics**: Usage tracking and billing
+- **📊 Real-time Dashboard**: Live metrics and video management interface
 - **🚦 Rate Limiting**: Per-user request limiting
+- **🔍 Smart Validation**: Comprehensive payload validation supporting all Shotstack features
 - **📚 API Documentation**: Interactive Swagger UI
 
 ## 📋 Docker Commands
@@ -148,17 +151,23 @@ docker-compose up -d --scale worker=3
 
 ## 🔗 API Usage
 
-**Render a video:**
+**Render a video with automatic transcription:**
 ```bash
-curl -X POST "http://localhost:8001/api/v1/render" \
-  -H "Authorization: Bearer <jwt-token>" \
+curl -X POST "http://localhost:8002/api/v1/render" \
+  -H "Authorization: Bearer <your-api-key>" \
+  -H "X-User-Email: user@example.com" \
   -H "Content-Type: application/json" \
   -d '{
     "timeline": {
       "tracks": [{
         "clips": [{
-          "asset": {"type": "video", "src": "https://example.com/video.mp4"},
-          "start": 0, "length": 10
+          "asset": {"type": "caption", "src": "alias://audioTrack"},
+          "start": 0, "length": "end"
+        }]
+      }, {
+        "clips": [{
+          "asset": {"type": "audio", "src": "https://example.com/audio.mp3"},
+          "start": 0, "length": "auto", "alias": "audioTrack"
         }]
       }]
     },
@@ -168,8 +177,9 @@ curl -X POST "http://localhost:8001/api/v1/render" \
 
 **Get video links:**
 ```bash
-curl "http://localhost:8001/api/v1/videos/{job_id}" \
-  -H "Authorization: Bearer <jwt-token>"
+curl "http://localhost:8002/api/v1/videos/{job_id}" \
+  -H "Authorization: Bearer <your-api-key>" \
+  -H "X-User-Email: user@example.com"
 ```
 
 ## 🏗️ Project Structure
@@ -224,8 +234,10 @@ GOOGLE_APPLICATION_CREDENTIALS=/app/gcp-credentials.json
 
 ## 🔒 Security & Production
 
-- JWT token validation with Supabase
-- Per-user rate limiting  
+- Dual authentication with Email + API Key validation
+- JWT token validation with Supabase Row Level Security
+- Comprehensive payload validation with Pydantic models
+- Per-user rate limiting and resource isolation
 - Environment variable protection
 - CORS configuration
 - Webhook signature validation

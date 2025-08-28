@@ -13,7 +13,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 import logging
 
 from .config import settings
-from .routers import shotstack, health, expiration, gcp_sync
+from .routers import shotstack, health, expiration, gcp_sync, stripe_router
 from .middleware.auth import verify_api_key
 from .middleware.rate_limit import RateLimitMiddleware
 from .middleware.validation import create_validation_middleware
@@ -215,6 +215,7 @@ api_app.include_router(health.router, prefix="/health", tags=["health"])
 api_app.include_router(shotstack.router, prefix="/v1", tags=["video-rendering"])
 api_app.include_router(expiration.router, prefix="/v1", tags=["expiration"])
 api_app.include_router(gcp_sync.router, prefix="/v1", tags=["gcp-sync"], include_in_schema=False)
+api_app.include_router(stripe_router.router, prefix="/v1", tags=["stripe-payments"])
 
 @api_app.get("/")
 async def root():
